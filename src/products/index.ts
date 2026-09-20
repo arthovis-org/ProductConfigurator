@@ -4,10 +4,11 @@
  *
  * To add a product: create `definitions/<id>.ts` and add it to `definitionInputs`.
  */
-import { placeholderDesk } from './definitions/placeholder-desk';
+import { deviceBundle } from './definitions/device-bundle';
+import { smartDesk } from './definitions/smart-desk';
 import { parseProductDefinition, type ProductDefinition } from './schema';
 
-const definitionInputs = [placeholderDesk];
+const definitionInputs = [smartDesk, deviceBundle];
 
 export const products: Readonly<Record<string, ProductDefinition>> = Object.fromEntries(
   definitionInputs.map((input) => {
