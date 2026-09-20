@@ -19,7 +19,7 @@ export const materialPresetSchema = z.object({
   color: z.string().regex(/^#([0-9a-f]{6})$/i, 'expected a #rrggbb colour'),
   roughness: z.number().min(0).max(1).default(0.5),
   metalness: z.number().min(0).max(1).default(0),
-  /** Optional texture maps, as URLs relative to `public/`. */
+  /** Optional texture maps under `public/`; wrap each URL in `publicAsset()`. */
   textureMaps: z
     .object({
       map: z.string().optional(),
@@ -106,7 +106,7 @@ export const productDefinitionSchema = z
     name: z.string().min(1),
     description: z.string().min(1),
     model: z.object({
-      /** URL relative to `public/`, e.g. `/models/smart-desk.glb`. */
+      /** URL of a file under `public/`, e.g. `publicAsset('models/smart-desk.glb')`. */
       src: z.string().min(1),
       scale: z.number().positive().default(1),
       position: vec3.default([0, 0, 0]),

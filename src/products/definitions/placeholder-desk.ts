@@ -1,3 +1,4 @@
+import { publicAsset } from '../assets';
 import type { ProductDefinitionInput } from '../schema';
 
 /**
@@ -8,7 +9,7 @@ export const placeholderDesk: ProductDefinitionInput = {
   id: 'placeholder-desk',
   name: 'Studio Desk',
   description: 'A placeholder desk that exercises every option type of the configurator.',
-  model: { src: '/models/placeholder-desk.glb' },
+  model: { src: publicAsset('models/placeholder-desk.glb') },
   basePrice: 890,
   currency: 'EUR',
 

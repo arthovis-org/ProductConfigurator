@@ -88,13 +88,14 @@ Create `src/products/definitions/<product-id>.ts` and register it in `src/produc
 An annotated example:
 
 ```ts
+import { publicAsset } from '../assets';
 import type { ProductDefinitionInput } from '../schema';
 
 export const smartDesk: ProductDefinitionInput = {
   id: 'smart-desk', // lowercase, dashes; used in URLs
   name: 'Smart Desk',
   description: 'Height-adjustable desk with integrated cable management.',
-  model: { src: '/models/smart-desk.glb' }, // optional: scale, position, rotation
+  model: { src: publicAsset('models/smart-desk.glb') }, // optional: scale, position, rotation
   basePrice: 1290,
   currency: 'EUR',
 
@@ -183,6 +184,15 @@ field. Node names that do not exist in the `.glb` are reported in the browser co
 ### 3. Check it
 
 `npm run dev`, open `http://localhost:5173/?product=<product-id>`, click through every option.
+
+## Deployment
+
+Every push to `main` builds the app and deploys it to GitHub Pages at
+<https://arthovis-org.github.io/ProductConfigurator/> through the
+`.github/workflows/deploy-pages.yml` GitHub Actions workflow (build with
+`--base=/ProductConfigurator/`, then `actions/deploy-pages`). The workflow can also be run by hand
+from the repository's **Actions** tab via _Run workflow_. Static assets referenced from product
+definitions must go through `publicAsset()` so they resolve under the deployment sub-path.
 
 ## Known limitations
 
