@@ -9,13 +9,14 @@ node names.
   (authored data)      (zod-validated          (productId + selections,        (pure: selections →
                         registry)               URL serialize/hydrate)          hidden nodes,
                                                                                 material presets,
-                                                                                node scales, price)
+                                                                                node scales, poses,
+                                                                                availability, price)
                                                         │                              │
                                                         ▼                              ▼
                                                ui/ConfiguratorPanel            viewer/ProductModel
                                                (one control per group,        (useGLTF, applies
-                                                writes selections)             visibility / scale /
-                                                                               cloned materials)
+                                                disabled while `requires`      visibility / scale /
+                                                fail, writes selections)       pose / cloned materials)
 ```
 
 ## Layers
@@ -31,15 +32,28 @@ The zustand store keeps only primitive state: `productId` and `selections`
 (`groupId -> optionId`). Everything else is derived. `derive.ts` contains pure functions, most
 importantly `resolveConfiguration(product, selections)`, which walks the option groups once and
 produces node-level instructions: which node names to hide, which material preset each node
-gets, which nodes to scale, and the price breakdown. `useResolvedConfiguration()` memoises this
-per (product, selections) pair. `urlState.ts` encodes and decodes the query string used for
+gets, which nodes to scale, which pose offset (Euler degrees + translation) each node gets, and
+the price breakdown. `useResolvedConfiguration()` memoises this per (product, selections) pair.
+
+Dependencies between groups (`requires`) are resolved in `sanitizeSelections`, which every store
+write goes through. It visits groups in declaration order (the schema only allows a requirement
+to point at an earlier group, so one pass suffices) and resets a group to its default whenever
+the group's or the selected option's requirements fail against the selections resolved so far.
+`resolveAvailability` reports the same facts to the UI as `{ available, hint,
+unavailableOptionIds }` per group, so the panel can grey out a group with "Requires 4K screen"
+instead of silently ignoring clicks. `urlState.ts` encodes and decodes the query string used for
 sharing; `App.tsx` hydrates from it on load and mirrors every change with `history.replaceState`.
 
 **Viewer (`src/viewer`)**
 `Scene.tsx` owns the Canvas, lighting (`StudioEnvironment`, a procedural light-former
 environment so there is no runtime CDN dependency), contact shadows, orbit controls and the
-`Bounds` framing. `ProductModel.tsx` loads the glTF, resolves each part's node names once and
-applies visibility and axis scale in an effect. Material presets are applied by
+`Bounds` framing. `ProductModel.tsx` loads the glTF, resolves every referenced node name once
+(`getObjectByName` searches the whole hierarchy, so definitions may target nested nodes) and
+remembers each node's authored scale, position and rotation. One effect then applies visibility,
+axis scale and pose offsets relative to those authored values; because they are plain scene-graph
+properties, hiding or moving a parent takes its children with it, which is how a raised
+`TopAssembly` carries the screens and trays. The camera is re-framed when the product changes or
+a pose moves geometry, but not when parts are merely shown or hidden. Material presets are applied by
 `PartAppearance`, one instance per node, which clones each mesh's original material so shared
 glTF materials never leak between parts and restores the original on cleanup. Textured presets
 suspend while their maps load. `ViewerErrorBoundary` keeps a broken model from taking down the
@@ -47,9 +61,21 @@ page.
 
 **UI (`src/ui`)**
 `ConfiguratorPanel` maps option groups to `OptionGroupControl`, which switches on `group.type`:
-material -> `MaterialSwatches`, variant and dimension -> `SegmentedControl`, toggle -> `Switch`.
-Controls are dumb: they receive items and a selected id and call back with an option id. Prices
-are formatted with `Intl.NumberFormat` in the product's currency.
+material -> `MaterialSwatches`, variant, dimension and pose -> `SegmentedControl`,
+toggle -> `Switch`. Controls are dumb: they receive items, a selected id and disabled flags and
+call back with an option id. A group whose requirements fail is rendered dimmed with the hint
+from `resolveAvailability` in place of its selected value. `Header` hosts the product switcher,
+which calls `selectProduct` (resetting selections to that product's defaults). Prices are
+formatted with `Intl.NumberFormat` in the product's currency.
+
+## Model structure rules
+
+- Every node a definition refers to (part nodes and pose targets) must exist by name; children
+  of a referenced node are included implicitly.
+- Nest what moves together: anything attached to a posed node must be its descendant.
+- A pose rotates around the node's origin, so hinged parts hang from a pivot node on the hinge
+  line and the definition poses the pivot.
+- Alternative variants live side by side in the file; the configurator hides the unselected ones.
 
 ## Adding an option type
 

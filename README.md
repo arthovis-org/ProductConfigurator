@@ -1,12 +1,15 @@
 # Product Configurator
 
 An interactive 3D product configurator for the browser. A product is a glTF model plus one
-TypeScript definition file that describes which parts can be swapped, recoloured, toggled or
-resized. The viewer, the option panel, pricing and shareable links are all derived from that
-definition, so adding a product means adding a `.glb` and a definition, not UI code.
+TypeScript definition file that describes which parts can be swapped, recoloured, toggled,
+resized or posed, and which options depend on others. The viewer, the option panel, pricing and
+shareable links are all derived from that definition, so adding a product means adding a `.glb`
+and a definition, not UI code.
 
-The first real product will be a smart desk modelled in Blender; until it lands the app ships
-with a procedurally generated placeholder desk that exercises every option type.
+Two products ship today, both with procedurally generated placeholder models until the real
+Blender files land: a **smart desk** (touch screen on a drafting hinge, desk-mounted 4K screen
+with optional side monitors, keyboard tray, sit/stand frame) and a **device bundle** (laptop,
+gamepad-style phone, stylus, card, earbuds on a mat).
 
 ## Stack
 
@@ -26,17 +29,18 @@ npm run dev          # http://localhost:5173
 
 Other scripts:
 
-| Script                         | Purpose                                              |
-| ------------------------------ | ---------------------------------------------------- |
-| `npm run build`                | Type-check and produce a production build in `dist/` |
-| `npm run preview`              | Serve the production build locally                   |
-| `npm run lint`                 | ESLint (type-aware)                                  |
-| `npm run typecheck`            | `tsc --noEmit` for app and config                    |
-| `npm run format`               | Prettier                                             |
-| `npm run generate:placeholder` | Regenerate `public/models/placeholder-desk.glb`      |
+| Script                    | Purpose                                              |
+| ------------------------- | ---------------------------------------------------- |
+| `npm run build`           | Type-check and produce a production build in `dist/` |
+| `npm run preview`         | Serve the production build locally                   |
+| `npm run lint`            | ESLint (type-aware)                                  |
+| `npm run typecheck`       | `tsc --noEmit` for app and config                    |
+| `npm run format`          | Prettier                                             |
+| `npm run generate:models` | Regenerate the placeholder `.glb` files              |
 
-Open a specific product with `?product=<id>`; the current configuration is kept in the URL
-(`&c=group:option,...`) so the address bar is always a shareable link.
+Switch products with the selector in the header or open one directly with `?product=<id>`; the
+current configuration is kept in the URL (`&c=group:option,...`) so the address bar is always a
+shareable link.
 
 ## Project layout
 
@@ -48,13 +52,16 @@ src/
     definitions/           one file per product
   state/
     configuratorStore.ts   zustand store: product, selections, reset, serialize/hydrate
-    derive.ts              pure functions: selections -> hidden nodes, materials, scales, price
+    derive.ts              pure functions: selections -> hidden nodes, materials, scales, poses,
+                           availability (requires) and price
     urlState.ts            query-string encoding of a configuration
   viewer/                  Canvas, lighting, model loading, per-part appearance
   ui/                      option panel, controls, header, price summary
   App.tsx                  layout and URL sync
 scripts/
-  generate-placeholder-model.mjs   builds the placeholder .glb from boxes
+  gltf-builder.mjs         helper that turns Three.js geometries into named glTF nodes
+  generate-smart-desk.mjs  builds public/models/smart-desk.glb
+  generate-device-bundle.mjs  builds public/models/device-bundle.glb
 public/models/             glTF binaries served as static files
 docs/ARCHITECTURE.md       data flow in more detail
 ```
@@ -71,6 +78,14 @@ its polygon count.
   the definition is written.
 - Alternatives (for example two leg styles) are both present in the file as separate objects.
   The configurator hides the ones that are not selected.
+- **Nest what moves together.** Parenting is the only way the configurator knows that a screen
+  is attached to the top: hiding a node hides its children, and a `pose` offset on a node moves
+  everything below it. Put the top and whatever is mounted on it under one empty
+  (`TopAssembly > Top, TouchScreenPivot > TouchScreen, MonitorMount > Monitor4K > SideMonitorLeft`)
+  so that raising the top raises the screens, and leave fixed parts (legs) at the root.
+- **Hinged parts rotate around their parent's origin.** A `pose` rotates a node around its own
+  origin, so give a hinged part a parent empty placed on the hinge line (`TouchScreenPivot` on
+  the rear edge of the touch screen) and pose that pivot.
 - Give materials meaningful names (`Top`, `Frame`). Material presets are applied per part on
   a clone of the original material, so baked-in textures (normal maps etc.) are kept unless a
   preset overrides them.
@@ -173,13 +188,42 @@ export const smartDesk: ProductDefinitionInput = {
         { id: 'w160', label: '160', value: 160, scale: 160 / 140, priceDelta: 90 },
       ],
     },
+    {
+      // Segmented buttons. Moves or rotates glTF nodes relative to how they were exported.
+      // Rotations are Euler degrees around the node's origin, so hinged parts need a pivot
+      // node on the hinge line (see step 1). Offsets from several pose groups add up.
+      id: 'touch-tilt',
+      type: 'pose',
+      label: 'Touch screen tilt',
+      // `requires` makes a group (or a single option) depend on earlier groups. While the
+      // dependency does not hold the group is shown disabled with a hint and its selection
+      // falls back to the default; the referenced group must be declared above this one.
+      requires: [{ groupId: 'touch-screen', optionIds: ['with'] }],
+      defaultOptionId: 'flat',
+      options: [
+        { id: 'flat', label: 'Flat', transforms: [] },
+        {
+          id: 'tilt30',
+          label: '30°',
+          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-30, 0, 0] }],
+        },
+        {
+          id: 'tilt45',
+          label: '45°',
+          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-45, 0, 0] }],
+        },
+      ],
+    },
+    // A `position` offset works the same way, e.g. a sit/stand lift:
+    // transforms: [{ nodes: ['TopAssembly'], position: [0, 0.35, 0] }]
   ],
 };
 ```
 
-Definitions are validated when the app starts. A typo in a part id, a missing default option or
-a toggle on a non-optional part fails immediately with a message that points at the offending
-field. Node names that do not exist in the `.glb` are reported in the browser console.
+Definitions are validated when the app starts. A typo in a part id, a missing default option, a
+toggle on a non-optional part or a `requires` that points at an unknown or later group fails
+immediately with a message that points at the offending field. Node names that do not exist in
+the `.glb` are reported in the browser console.
 
 ### 3. Check it
 
@@ -201,3 +245,5 @@ definitions must go through `publicAsset()` so they resolve under the deployment
 - Texture maps referenced by a material preset are loaded on demand; the first switch to a
   textured preset shows the loading indicator briefly.
 - No Draco/KTX2 decoding yet; export uncompressed or add the decoders to `useGLTF`.
+- When several `pose` groups move the same node their Euler angles are added component-wise,
+  which is only exact while they rotate around a single axis. Use one pose group per hinge.
