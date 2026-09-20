@@ -5,8 +5,10 @@ import { getProduct } from '@/products';
 import type { ProductDefinition } from '@/products/schema';
 import {
   defaultSelections,
+  resolveAvailability,
   resolveConfiguration,
   sanitizeSelections,
+  type GroupAvailability,
   type ResolvedConfiguration,
   type Selections,
 } from './derive';
@@ -73,4 +75,11 @@ export function useResolvedConfiguration(): ResolvedConfiguration {
   const product = useProduct();
   const selections = useSelections();
   return useMemo(() => resolveConfiguration(product, selections), [product, selections]);
+}
+
+/** Memoised per-group availability (`requires`) for the current selections. */
+export function useGroupAvailability(): ReadonlyMap<string, GroupAvailability> {
+  const product = useProduct();
+  const selections = useSelections();
+  return useMemo(() => resolveAvailability(product, selections), [product, selections]);
 }

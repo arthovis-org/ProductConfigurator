@@ -4,15 +4,20 @@ interface SwitchProps {
   label: string;
   checked: boolean;
   hint?: string;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 }
 
-export function Switch({ label, checked, hint, onChange }: SwitchProps) {
+/** "Touch screen" -> "touch screen", but "4K screen" stays as written. */
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+export function Switch({ label, checked, hint, disabled = false, onChange }: SwitchProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       className={styles.row}
       onClick={() => {
         onChange(!checked);
@@ -20,7 +25,7 @@ export function Switch({ label, checked, hint, onChange }: SwitchProps) {
     >
       <span className={styles.text}>
         <span className={styles.label}>
-          {checked ? `${label} included` : `Add ${label.toLowerCase()}`}
+          {checked ? `${label} included` : `Add ${lowerFirst(label)}`}
         </span>
         {hint && <span className={styles.hint}>{hint}</span>}
       </span>

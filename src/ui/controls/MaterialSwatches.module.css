@@ -44,3 +44,13 @@
     rgb(0 0 0 / 15%)
   );
 }
+
+.swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.swatch:disabled:hover {
+  --ring: transparent;
+  transform: none;
+}

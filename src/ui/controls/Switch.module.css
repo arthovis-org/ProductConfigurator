@@ -62,3 +62,11 @@
   transform: translateX(1rem);
   background: var(--accent-contrast);
 }
+
+.row:disabled {
+  cursor: not-allowed;
+}
+
+.row:disabled:hover {
+  border-color: var(--border);
+}

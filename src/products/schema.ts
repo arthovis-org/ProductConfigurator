@@ -2,8 +2,8 @@
  * Product definition schema.
  *
  * A product is a glTF model plus a declarative description of which nodes can be
- * shown, hidden, re-materialised or resized. The UI and the 3D viewer are driven
- * entirely by this data, so adding a product never requires UI changes.
+ * shown, hidden, re-materialised, resized or posed. The UI and the 3D viewer are
+ * driven entirely by this data, so adding a product never requires UI changes.
  */
 import { z } from 'zod';
 
@@ -42,6 +42,16 @@ export const partDefinitionSchema = z.object({
   optional: z.boolean().default(false),
 });
 
+/**
+ * A dependency on another group's selection: holds when that group's selected
+ * option is one of `optionIds`. The referenced group must be declared earlier in
+ * `optionGroups`, which rules out cycles and lets selections resolve in one pass.
+ */
+export const requirementSchema = z.object({
+  groupId: identifier,
+  optionIds: z.array(identifier).min(1),
+});
+
 const optionBase = z.object({
   id: identifier,
   label: z.string().min(1),
@@ -49,6 +59,8 @@ const optionBase = z.object({
   priceDelta: z.number().default(0),
   /** Optional image URL for the option (falls back to a colour swatch for materials). */
   thumbnail: z.string().optional(),
+  /** The option can only be selected while every requirement holds. */
+  requires: z.array(requirementSchema).default([]),
 });
 
 const groupBase = z.object({
@@ -56,6 +68,8 @@ const groupBase = z.object({
   label: z.string().min(1),
   description: z.string().optional(),
   defaultOptionId: identifier,
+  /** The group is only available while every requirement holds; otherwise it resets to its default. */
+  requires: z.array(requirementSchema).default([]),
 });
 
 /** Shows the option's parts and hides every other part referenced by the group. */
@@ -93,11 +107,33 @@ export const dimensionGroupSchema = groupBase.extend({
     .min(1),
 });
 
+/** A rigid transform applied to glTF nodes on top of their authored transform. */
+export const poseTransformSchema = z.object({
+  nodes: z.array(z.string().min(1)).min(1),
+  /** Euler rotation in degrees (XYZ order) around the node's own origin. */
+  rotation: vec3.optional(),
+  /** Offset in the node's local units (metres for a correctly exported model). */
+  position: vec3.optional(),
+});
+
+/**
+ * Moves or rotates nodes between authored poses, e.g. a hinge angle or a lift
+ * height. Rotation happens around the node's origin, so model hinged parts as a
+ * child of a pivot node placed on the hinge line and pose the pivot.
+ */
+export const poseGroupSchema = groupBase.extend({
+  type: z.literal('pose'),
+  options: z
+    .array(optionBase.extend({ transforms: z.array(poseTransformSchema).default([]) }))
+    .min(1),
+});
+
 export const optionGroupSchema = z.discriminatedUnion('type', [
   variantGroupSchema,
   materialGroupSchema,
   toggleGroupSchema,
   dimensionGroupSchema,
+  poseGroupSchema,
 ]);
 
 export const productDefinitionSchema = z
@@ -122,7 +158,8 @@ export const productDefinitionSchema = z
   .superRefine((product, ctx) => {
     const partIds = new Set(product.parts.map((part) => part.id));
     const optionalParts = new Set(product.parts.filter((p) => p.optional).map((p) => p.id));
-    const groupIds = new Set<string>();
+    /** Groups declared so far, so requirements can only point backwards. */
+    const declaredGroups = new Map<string, z.output<typeof optionGroupSchema>>();
 
     const requirePart = (partId: string, path: (string | number)[]) => {
       if (!partIds.has(partId)) {
@@ -130,12 +167,37 @@ export const productDefinitionSchema = z
       }
     };
 
+    const checkRequirements = (
+      requires: z.output<typeof requirementSchema>[],
+      path: (string | number)[],
+    ) => {
+      requires.forEach((requirement, i) => {
+        const target = declaredGroups.get(requirement.groupId);
+        if (!target) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [...path, i, 'groupId'],
+            message: `"${requirement.groupId}" must be an option group declared earlier`,
+          });
+          return;
+        }
+        requirement.optionIds.forEach((optionId, j) => {
+          if (!target.options.some((option) => option.id === optionId)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [...path, i, 'optionIds', j],
+              message: `group "${target.id}" has no option "${optionId}"`,
+            });
+          }
+        });
+      });
+    };
+
     product.optionGroups.forEach((group, groupIndex) => {
       const path = ['optionGroups', groupIndex];
-      if (groupIds.has(group.id)) {
+      if (declaredGroups.has(group.id)) {
         ctx.addIssue({ code: 'custom', path, message: `duplicate group id "${group.id}"` });
       }
-      groupIds.add(group.id);
 
       if (!group.options.some((option) => option.id === group.defaultOptionId)) {
         ctx.addIssue({
@@ -144,6 +206,11 @@ export const productDefinitionSchema = z
           message: `"${group.defaultOptionId}" is not one of the group's options`,
         });
       }
+
+      checkRequirements(group.requires, [...path, 'requires']);
+      group.options.forEach((option, i) =>
+        checkRequirements(option.requires, [...path, 'options', i, 'requires']),
+      );
 
       switch (group.type) {
         case 'variant':
@@ -174,7 +241,11 @@ export const productDefinitionSchema = z
             });
           }
           break;
+        case 'pose':
+          break;
       }
+
+      declaredGroups.set(group.id, group);
     });
   });
 
@@ -184,11 +255,14 @@ export type ProductDefinitionInput = z.input<typeof productDefinitionSchema>;
 export type ProductDefinition = z.output<typeof productDefinitionSchema>;
 export type PartDefinition = z.output<typeof partDefinitionSchema>;
 export type MaterialPreset = z.output<typeof materialPresetSchema>;
+export type Requirement = z.output<typeof requirementSchema>;
+export type PoseTransform = z.output<typeof poseTransformSchema>;
 export type OptionGroup = z.output<typeof optionGroupSchema>;
 export type VariantGroup = z.output<typeof variantGroupSchema>;
 export type MaterialGroup = z.output<typeof materialGroupSchema>;
 export type ToggleGroup = z.output<typeof toggleGroupSchema>;
 export type DimensionGroup = z.output<typeof dimensionGroupSchema>;
+export type PoseGroup = z.output<typeof poseGroupSchema>;
 export type Option = OptionGroup['options'][number];
 export type Axis = DimensionGroup['axis'];
 
