@@ -56,3 +56,14 @@
     padding: 1rem 1rem 1.5rem;
   }
 }
+
+.requirement {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.group[data-disabled] {
+  opacity: 0.55;
+}

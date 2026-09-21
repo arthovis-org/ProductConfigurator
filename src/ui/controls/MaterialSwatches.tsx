@@ -6,6 +6,7 @@ interface MaterialSwatchesProps {
   options: MaterialGroup['options'];
   selectedId: string;
   currency: string;
+  isDisabled?: (optionId: string) => boolean;
   onSelect: (optionId: string) => void;
 }
 
@@ -13,6 +14,7 @@ export function MaterialSwatches({
   options,
   selectedId,
   currency,
+  isDisabled,
   onSelect,
 }: MaterialSwatchesProps) {
   return (
@@ -28,6 +30,7 @@ export function MaterialSwatches({
             aria-checked={option.id === selectedId}
             aria-label={title}
             title={title}
+            disabled={isDisabled?.(option.id)}
             className={styles.swatch}
             data-metallic={option.material.metalness > 0.5 || undefined}
             onClick={() => onSelect(option.id)}

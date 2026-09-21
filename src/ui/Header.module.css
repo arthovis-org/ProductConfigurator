@@ -33,6 +33,13 @@
   text-overflow: ellipsis;
 }
 
+.products {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+
 .actions {
   display: flex;
   gap: 0.5rem;
@@ -77,5 +84,9 @@
 
   .eyebrow {
     display: none;
+  }
+
+  .products {
+    justify-content: flex-end;
   }
 }

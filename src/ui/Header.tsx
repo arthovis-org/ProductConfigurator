@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { productList } from '@/products';
 import { useConfiguratorStore, useProduct } from '@/state/configuratorStore';
+import { SegmentedControl } from './controls/SegmentedControl';
 import styles from './Header.module.css';
 
 export function Header() {
   const product = useProduct();
+  const selectProduct = useConfiguratorStore((state) => state.selectProduct);
   const resetToDefaults = useConfiguratorStore((state) => state.resetToDefaults);
   const serialize = useConfiguratorStore((state) => state.serialize);
   const [copied, setCopied] = useState(false);
@@ -30,6 +33,16 @@ export function Header() {
         <span className={styles.eyebrow}>Configurator</span>
         <h1 className={styles.name}>{product.name}</h1>
       </div>
+      {productList.length > 1 && (
+        <nav className={styles.products} aria-label="Product">
+          <SegmentedControl
+            size="small"
+            items={productList.map((candidate) => ({ id: candidate.id, label: candidate.name }))}
+            selectedId={product.id}
+            onSelect={selectProduct}
+          />
+        </nav>
+      )}
       <div className={styles.actions}>
         <button type="button" className={styles.button} onClick={resetToDefaults}>
           Reset
