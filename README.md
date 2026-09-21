@@ -8,7 +8,8 @@ and a definition, not UI code.
 
 Two products ship today, both with procedurally generated placeholder models until the real
 Blender files land: a **smart desk** (touch screen in three sizes on a front-edge drafting hinge,
-4K screen on a rear-edge arm with optional side monitors, keyboard tray, sit/stand frame) and a **device bundle** (laptop,
+4K screen on a rear-edge arm with optional side monitors, keyboard tray, sit/stand frame, and
+in-screen content that shows a workflow on every display) and a **device bundle** (laptop,
 gamepad-style phone, stylus, card, earbuds on a mat).
 
 ## Stack
@@ -52,11 +53,15 @@ src/
     definitions/           one file per product
   state/
     configuratorStore.ts   zustand store: product, selections, reset, serialize/hydrate
+    spatialStore.ts        view state of the flat -> 3D workspace transition
     derive.ts              pure functions: selections -> hidden nodes, materials, scales, poses,
-                           availability (requires) and price
+                           screen content, availability (requires) and price
     urlState.ts            query-string encoding of a configuration
-  viewer/                  Canvas, lighting, model loading, per-part appearance
-  ui/                      option panel, controls, header, price summary
+  screens/                 canvas renderers for in-screen content: layouts, OS chrome, app
+                           mockups, workflows, spatial backdrop and control surface
+  viewer/                  Canvas, lighting, model loading, per-part appearance, screen
+                           textures and the spatial workspace
+  ui/                      option panel, controls, header, price summary, Screens section
   App.tsx                  layout and URL sync
 scripts/
   gltf-builder.mjs         helper that turns Three.js geometries into named glTF nodes
@@ -232,8 +237,9 @@ export const smartDesk: ProductDefinitionInput = {
 ```
 
 Definitions are validated when the app starts. A typo in a part id, a missing default option, a
-toggle on a non-optional part or a `requires` that points at an unknown or later group fails
-immediately with a message that points at the offending field. Node names that do not exist in
+toggle on a non-optional part, a `requires` that points at an unknown or later group or a
+`screen` group that targets a part without screens fails immediately with a message that points
+at the offending field. Node names that do not exist in
 the `.glb` are reported in the browser console.
 
 ### 3. Check it
@@ -248,6 +254,78 @@ Every push to `main` builds the app and deploys it to GitHub Pages at
 `--base=/ProductConfigurator/`, then `actions/deploy-pages`). The workflow can also be run by hand
 from the repository's **Actions** tab via _Run workflow_. Static assets referenced from product
 definitions must go through `publicAsset()` so they resolve under the deployment sub-path.
+
+## Screens: content inside the displays
+
+Any part can declare display surfaces, and the viewer draws abstract app mockups on them so
+users see their workflow on the product rather than a black panel.
+
+### Declaring a screen
+
+```ts
+{
+  id: 'monitor-4k',
+  label: '4K screen',
+  nodes: ['MonitorMount'],
+  optional: true,
+  screens: [
+    {
+      node: 'Monitor4K_Panel', // the panel mesh (a thin box or plane)
+      widthPx: 3840, // sets the aspect ratio and texture resolution (longest side <= 1920)
+      heightPx: 2160,
+      kind: 'display', // or 'touch' for tiles, sliders and wheels instead of windows
+      content: { layout: 'two-up' }, // defaults; screen groups override facets
+    },
+  ],
+},
+```
+
+The panel's texture runs along local +X (right) and local +Y (up) for a vertical panel facing
++Z, or local -Z (away from the user) for a horizontal panel facing +Y, which is what a
+Blender box or plane exports by default. The thinnest axis of the mesh is taken as the normal.
+A part whose nodes sit under another part's nodes (one touch screen size under the touch screen
+assembly) declares `partOf: '<parent part id>'` so its screens count as hidden with the parent.
+
+### Controlling what screens show
+
+A `screen` option group changes one or more content facets on the screens of its `targets`;
+facets from several groups merge in declaration order, so one group picks the OS for every
+screen and another the layout of a single one. The group is disabled with "Requires a screen"
+while every target part is hidden.
+
+```ts
+{
+  id: 'layout-4k',
+  type: 'screen',
+  label: '4K screen layout',
+  targets: ['monitor-4k'],
+  requires: [{ groupId: 'monitor-4k', optionIds: ['with'] }],
+  defaultOptionId: 'two-up',
+  options: [
+    { id: 'single', label: 'Single', content: { layout: 'single' } },
+    { id: 'grid-2x2', label: '2×2 grid', content: { layout: 'grid-2x2' } },
+  ],
+},
+```
+
+The facets are `layout` (`single`, `two-up`, `three-column`, `grid-2x2`, `sidebar-main`, `pip`,
+`stack`), `workflow` (`design`, `trading`, `coding`, `video`, `writing`) and `os` (`mac`,
+`windows`, `linux`, `chromeos`, all drawn as generic desktop chrome). The panel gathers screen
+groups into a **Screens** section with a **Show the 3D workspace** button that lifts the
+windows off the displays as floating cards, fades the desktops to a dark backdrop and turns
+touch screens into control surfaces; the button reverses the animation.
+
+### Adding a layout, workflow or OS style
+
+- **Layout**: add the id to `LAYOUT_IDS` in `schema.ts` and return its panes from
+  `layoutPanes()` in `src/screens/layouts.ts` (normalised rects with a `main`, `secondary` or
+  `pip` role; `pip` panes are drawn last).
+- **Workflow**: add the id to `WORKFLOW_IDS` and an entry in `src/screens/workflows.ts` listing
+  its apps in priority order plus their touch counterparts. New app mockups are functions in
+  `src/screens/apps.ts` that draw into a rect with the helpers in `draw.ts`; keep them abstract
+  (bars, panels, charts) and use `palette.ts`.
+- **OS style**: add the id to `OS_IDS` and a style in `src/screens/os.ts` (wallpaper stops, bar
+  placement, window radius, control placement and shape).
 
 ## Smart desk geometry
 

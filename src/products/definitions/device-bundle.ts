@@ -18,8 +18,30 @@ export const deviceBundle: ProductDefinitionInput = {
 
   parts: [
     { id: 'mat', label: 'Desk mat', nodes: ['Mat'] },
-    { id: 'laptop', label: 'Laptop', nodes: ['Laptop'], optional: true },
-    { id: 'phone', label: 'Gamepad phone', nodes: ['GamepadPhone'], optional: true },
+    {
+      id: 'laptop',
+      label: 'Laptop',
+      nodes: ['Laptop'],
+      optional: true,
+      screens: [
+        { node: 'Laptop_Screen', widthPx: 2560, heightPx: 1600, content: { layout: 'two-up' } },
+      ],
+    },
+    {
+      id: 'phone',
+      label: 'Gamepad phone',
+      nodes: ['GamepadPhone'],
+      optional: true,
+      screens: [
+        {
+          node: 'Phone_Screen',
+          widthPx: 2400,
+          heightPx: 1080,
+          kind: 'touch',
+          content: { layout: 'two-up' },
+        },
+      ],
+    },
     { id: 'stylus', label: 'Stylus', nodes: ['Stylus'], optional: true },
     { id: 'card', label: 'Payment card', nodes: ['CreditCard'], optional: true },
     { id: 'earbuds', label: 'Earbuds case', nodes: ['EarbudsCase'], optional: true },
@@ -86,6 +108,34 @@ export const deviceBundle: ProductDefinitionInput = {
       options: [
         { id: 'without', label: 'None', visible: false },
         { id: 'with', label: 'Included', visible: true, priceDelta: 899 },
+      ],
+    },
+    {
+      id: 'os',
+      type: 'screen',
+      label: 'Operating system',
+      description: 'Desktop style shown on the laptop and phone.',
+      targets: ['laptop', 'phone'],
+      defaultOptionId: 'mac',
+      options: [
+        { id: 'mac', label: 'Mac-style', content: { os: 'mac' } },
+        { id: 'windows', label: 'Windows-style', content: { os: 'windows' } },
+        { id: 'linux', label: 'Linux-style', content: { os: 'linux' } },
+        { id: 'chromeos', label: 'ChromeOS-style', content: { os: 'chromeos' } },
+      ],
+    },
+    {
+      id: 'workflow',
+      type: 'screen',
+      label: 'Workflow',
+      targets: ['laptop', 'phone'],
+      defaultOptionId: 'writing',
+      options: [
+        { id: 'design', label: 'Design', content: { workflow: 'design' } },
+        { id: 'trading', label: 'Trading', content: { workflow: 'trading' } },
+        { id: 'coding', label: 'Coding', content: { workflow: 'coding' } },
+        { id: 'video', label: 'Video editing', content: { workflow: 'video' } },
+        { id: 'writing', label: 'Writing / research', content: { workflow: 'writing' } },
       ],
     },
     {

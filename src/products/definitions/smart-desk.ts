@@ -5,6 +5,8 @@ import geometry from './smart-desk.geometry.json';
 /** Touch screen sizes and the hinge angles solved by `scripts/generate-smart-desk.mjs`. */
 const touchSizes = geometry.touchScreenSizes;
 const touchPivots = touchSizes.map((size) => `TouchScreenPivot_${size.inches}`);
+const touchParts = touchSizes.map((size) => `touch-${size.inches}`);
+const screenParts = [...touchParts, 'monitor-4k', 'side-monitors'];
 /** Rotates every size's pivot by the same angle; only the selected size is visible. */
 const touchTilt = (degrees: number): PoseTransform[] => [
   { nodes: touchPivots, rotation: [degrees, 0, 0] },
@@ -67,6 +69,16 @@ export const smartDesk: ProductDefinitionInput = {
       label: `${size.inches}" touch panel`,
       nodes: [`TouchScreenPivot_${size.inches}`, `TouchScreenRecess_${size.inches}`],
       group: 'Displays',
+      partOf: 'touch-screen',
+      screens: [
+        {
+          node: `TouchScreen_${size.inches}_Panel`,
+          widthPx: 1920,
+          heightPx: 1080,
+          kind: 'touch' as const,
+          content: { layout: 'sidebar-main' as const },
+        },
+      ],
     })),
     {
       id: 'monitor-4k',
@@ -74,6 +86,7 @@ export const smartDesk: ProductDefinitionInput = {
       nodes: ['MonitorMount'],
       group: 'Displays',
       optional: true,
+      screens: [{ node: 'Monitor4K_Panel', widthPx: 3840, heightPx: 2160 }],
     },
     {
       id: 'side-monitors',
@@ -81,6 +94,21 @@ export const smartDesk: ProductDefinitionInput = {
       nodes: ['SideMonitorLeft', 'SideMonitorRight'],
       group: 'Displays',
       optional: true,
+      // Portrait panels stack their panes; no layout group targets them.
+      screens: [
+        {
+          node: 'SideMonitorLeft_Panel',
+          widthPx: 1440,
+          heightPx: 2560,
+          content: { layout: 'stack' },
+        },
+        {
+          node: 'SideMonitorRight_Panel',
+          widthPx: 1440,
+          heightPx: 2560,
+          content: { layout: 'stack' },
+        },
+      ],
     },
   ],
 
@@ -241,6 +269,64 @@ export const smartDesk: ProductDefinitionInput = {
       options: [
         { id: 'without', label: 'None', visible: false },
         { id: 'with', label: 'Included', visible: true, priceDelta: 640 },
+      ],
+    },
+    {
+      id: 'os',
+      type: 'screen',
+      label: 'Operating system',
+      description: 'Desktop style shown on every screen.',
+      targets: screenParts,
+      defaultOptionId: 'mac',
+      options: [
+        { id: 'mac', label: 'Mac-style', content: { os: 'mac' } },
+        { id: 'windows', label: 'Windows-style', content: { os: 'windows' } },
+        { id: 'linux', label: 'Linux-style', content: { os: 'linux' } },
+        { id: 'chromeos', label: 'ChromeOS-style', content: { os: 'chromeos' } },
+      ],
+    },
+    {
+      id: 'workflow',
+      type: 'screen',
+      label: 'Workflow',
+      description: 'Fills the screens with the apps of a typical day.',
+      targets: screenParts,
+      defaultOptionId: 'design',
+      options: [
+        { id: 'design', label: 'Design', content: { workflow: 'design' } },
+        { id: 'trading', label: 'Trading', content: { workflow: 'trading' } },
+        { id: 'coding', label: 'Coding', content: { workflow: 'coding' } },
+        { id: 'video', label: 'Video editing', content: { workflow: 'video' } },
+        { id: 'writing', label: 'Writing / research', content: { workflow: 'writing' } },
+      ],
+    },
+    {
+      id: 'layout-4k',
+      type: 'screen',
+      label: '4K screen layout',
+      targets: ['monitor-4k'],
+      requires: [{ groupId: 'monitor-4k', optionIds: ['with'] }],
+      defaultOptionId: 'two-up',
+      options: [
+        { id: 'single', label: 'Single', content: { layout: 'single' } },
+        { id: 'two-up', label: '2-up', content: { layout: 'two-up' } },
+        { id: 'three-column', label: '3 columns', content: { layout: 'three-column' } },
+        { id: 'grid-2x2', label: '2×2 grid', content: { layout: 'grid-2x2' } },
+        { id: 'sidebar-main', label: 'Sidebar + main', content: { layout: 'sidebar-main' } },
+        { id: 'pip', label: 'Picture-in-picture', content: { layout: 'pip' } },
+      ],
+    },
+    {
+      id: 'layout-touch',
+      type: 'screen',
+      label: 'Touch screen layout',
+      targets: touchParts,
+      requires: [{ groupId: 'touch-screen', optionIds: ['with'] }],
+      defaultOptionId: 'sidebar-main',
+      options: [
+        { id: 'single', label: 'Single', content: { layout: 'single' } },
+        { id: 'two-up', label: '2-up', content: { layout: 'two-up' } },
+        { id: 'sidebar-main', label: 'Sidebar + main', content: { layout: 'sidebar-main' } },
       ],
     },
     {

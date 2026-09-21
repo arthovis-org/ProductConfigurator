@@ -41,6 +41,7 @@ export function OptionGroupControl({
     case 'variant':
     case 'dimension':
     case 'pose':
+    case 'screen':
       return (
         <SegmentedControl
           items={group.options.map((option) => ({

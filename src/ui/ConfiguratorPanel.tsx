@@ -1,61 +1,30 @@
-import {
-  useConfiguratorStore,
-  useGroupAvailability,
-  useProduct,
-  useSelections,
-} from '@/state/configuratorStore';
-import { optionDisplayLabel, selectedOption } from '@/state/derive';
+import { useProduct } from '@/state/configuratorStore';
 import styles from './ConfiguratorPanel.module.css';
-import { OptionGroupControl } from './OptionGroupControl';
+import { OptionGroupSection } from './OptionGroupSection';
 import { PriceSummary } from './PriceSummary';
-import { formatPriceDelta } from './formatPrice';
+import { ScreensSection } from './ScreensSection';
 
-/** Lists every option group of the current product, followed by the price summary. */
+/**
+ * Lists every option group of the current product in declaration order, followed by the
+ * price summary. Screen groups are gathered into one "Screens" section, placed where the
+ * first of them appears.
+ */
 export function ConfiguratorPanel() {
   const product = useProduct();
-  const selections = useSelections();
-  const availability = useGroupAvailability();
-  const selectOption = useConfiguratorStore((state) => state.selectOption);
+  const screenGroups = product.optionGroups.filter((group) => group.type === 'screen');
+  const firstScreenGroup = screenGroups[0];
 
   return (
     <div className={styles.panel}>
       <p className={styles.description}>{product.description}</p>
 
       {product.optionGroups.map((group) => {
-        const option = selectedOption(group, selections);
-        const delta = formatPriceDelta(option.priceDelta, product.currency);
-        const state = availability.get(group.id);
-        const disabled = state?.available === false;
-        return (
-          <section
-            key={group.id}
-            className={styles.group}
-            aria-labelledby={`group-${group.id}`}
-            data-disabled={disabled || undefined}
-          >
-            <div className={styles.groupHeader}>
-              <h2 id={`group-${group.id}`} className={styles.groupLabel}>
-                {group.label}
-              </h2>
-              {disabled ? (
-                <span className={styles.requirement}>{state.hint}</span>
-              ) : (
-                <span className={styles.selected}>
-                  {optionDisplayLabel(group, option)}
-                  {delta && <span className={styles.delta}> {delta}</span>}
-                </span>
-              )}
-            </div>
-            {group.description && <p className={styles.groupDescription}>{group.description}</p>}
-            <OptionGroupControl
-              group={group}
-              selectedOptionId={option.id}
-              disabled={disabled}
-              disabledOptionIds={state?.unavailableOptionIds}
-              onSelect={(optionId) => selectOption(group.id, optionId)}
-            />
-          </section>
-        );
+        if (group.type === 'screen') {
+          return group === firstScreenGroup ? (
+            <ScreensSection key="screens" groups={screenGroups} />
+          ) : null;
+        }
+        return <OptionGroupSection key={group.id} group={group} />;
       })}
 
       <PriceSummary />
