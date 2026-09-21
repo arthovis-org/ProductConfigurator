@@ -74,7 +74,9 @@ formatted with `Intl.NumberFormat` in the product's currency.
   of a referenced node are included implicitly.
 - Nest what moves together: anything attached to a posed node must be its descendant.
 - A pose rotates around the node's origin, so hinged parts hang from a pivot node on the hinge
-  line and the definition poses the pivot.
+  line and the definition poses the pivot. One pose option may list several transforms, so a
+  single "Drafting" preset can turn each screen size's pivot by its own angle; hidden variants
+  are posed too, which is harmless.
 - Alternative variants live side by side in the file; the configurator hides the unselected ones.
 
 ## Adding an option type

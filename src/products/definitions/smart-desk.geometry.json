@@ -1,0 +1,25 @@
+{
+  "touchScreenSizes": [
+    {
+      "inches": 24,
+      "widthM": 0.531,
+      "depthM": 0.299,
+      "hingeZ": 0.013,
+      "draftingAngleDeg": 58.2
+    },
+    {
+      "inches": 27,
+      "widthM": 0.598,
+      "depthM": 0.336,
+      "hingeZ": 0.076,
+      "draftingAngleDeg": 49.1
+    },
+    {
+      "inches": 32,
+      "widthM": 0.708,
+      "depthM": 0.398,
+      "hingeZ": 0.163,
+      "draftingAngleDeg": 39.6
+    }
+  ]
+}

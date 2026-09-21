@@ -1,5 +1,14 @@
 import { publicAsset } from '../assets';
-import type { ProductDefinitionInput } from '../schema';
+import type { PoseTransform, ProductDefinitionInput } from '../schema';
+import geometry from './smart-desk.geometry.json';
+
+/** Touch screen sizes and the hinge angles solved by `scripts/generate-smart-desk.mjs`. */
+const touchSizes = geometry.touchScreenSizes;
+const touchPivots = touchSizes.map((size) => `TouchScreenPivot_${size.inches}`);
+/** Rotates every size's pivot by the same angle; only the selected size is visible. */
+const touchTilt = (degrees: number): PoseTransform[] => [
+  { nodes: touchPivots, rotation: [degrees, 0, 0] },
+];
 
 /**
  * Smart desk with embedded touch screen, mounted 4K display and sit/stand frame.
@@ -49,10 +58,16 @@ export const smartDesk: ProductDefinitionInput = {
     {
       id: 'touch-screen',
       label: 'Touch screen',
-      nodes: ['TouchScreenPivot'],
+      nodes: ['TouchScreens'],
       group: 'Displays',
       optional: true,
     },
+    ...touchSizes.map((size) => ({
+      id: `touch-${size.inches}`,
+      label: `${size.inches}" touch panel`,
+      nodes: [`TouchScreenPivot_${size.inches}`, `TouchScreenRecess_${size.inches}`],
+      group: 'Displays',
+    })),
     {
       id: 'monitor-4k',
       label: '4K screen',
@@ -159,7 +174,8 @@ export const smartDesk: ProductDefinitionInput = {
       id: 'touch-screen',
       type: 'toggle',
       label: 'Touch screen',
-      description: 'A 24-inch touch display set into the top, on a drafting-table hinge.',
+      description:
+        'A touch display set flush into the top, hinged along the front edge like a drafting table.',
       part: 'touch-screen',
       defaultOptionId: 'without',
       options: [
@@ -168,27 +184,37 @@ export const smartDesk: ProductDefinitionInput = {
       ],
     },
     {
+      id: 'touch-size',
+      type: 'variant',
+      label: 'Touch screen size',
+      requires: [{ groupId: 'touch-screen', optionIds: ['with'] }],
+      defaultOptionId: 'in27',
+      options: touchSizes.map((size, index) => ({
+        id: `in${size.inches}`,
+        label: `${size.inches}"`,
+        parts: [`touch-${size.inches}`],
+        priceDelta: [-150, 0, 260][index] ?? 0,
+      })),
+    },
+    {
       id: 'touch-tilt',
       type: 'pose',
       label: 'Touch screen tilt',
+      description: 'Raises the far edge; the drafting position stops where the 4K screen begins.',
       requires: [{ groupId: 'touch-screen', optionIds: ['with'] }],
       defaultOptionId: 'flat',
       options: [
         { id: 'flat', label: 'Flat', transforms: [] },
+        { id: 'tilt15', label: '15°', transforms: touchTilt(15) },
+        { id: 'tilt30', label: '30°', transforms: touchTilt(30) },
         {
-          id: 'tilt15',
-          label: '15°',
-          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-15, 0, 0] }],
-        },
-        {
-          id: 'tilt30',
-          label: '30°',
-          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-30, 0, 0] }],
-        },
-        {
-          id: 'tilt45',
-          label: '45°',
-          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-45, 0, 0] }],
+          id: 'drafting',
+          label: 'Drafting (meets 4K screen)',
+          // Each size needs its own angle for the far edge to land under the 4K screen.
+          transforms: touchSizes.map((size): PoseTransform => ({
+            nodes: [`TouchScreenPivot_${size.inches}`],
+            rotation: [size.draftingAngleDeg, 0, 0],
+          })),
         },
       ],
     },
@@ -196,7 +222,7 @@ export const smartDesk: ProductDefinitionInput = {
       id: 'monitor-4k',
       type: 'toggle',
       label: '4K screen',
-      description: 'A 43-inch 4K display on a desk mount, centred at eye level.',
+      description: 'A 43-inch 4K display on a rear-edge arm mount, centred at eye level.',
       part: 'monitor-4k',
       defaultOptionId: 'without',
       options: [

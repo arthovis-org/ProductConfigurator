@@ -7,8 +7,8 @@ shareable links are all derived from that definition, so adding a product means 
 and a definition, not UI code.
 
 Two products ship today, both with procedurally generated placeholder models until the real
-Blender files land: a **smart desk** (touch screen on a drafting hinge, desk-mounted 4K screen
-with optional side monitors, keyboard tray, sit/stand frame) and a **device bundle** (laptop,
+Blender files land: a **smart desk** (touch screen in three sizes on a front-edge drafting hinge,
+4K screen on a rear-edge arm with optional side monitors, keyboard tray, sit/stand frame) and a **device bundle** (laptop,
 gamepad-style phone, stylus, card, earbuds on a mat).
 
 ## Stack
@@ -60,7 +60,8 @@ src/
   App.tsx                  layout and URL sync
 scripts/
   gltf-builder.mjs         helper that turns Three.js geometries into named glTF nodes
-  generate-smart-desk.mjs  builds public/models/smart-desk.glb
+  generate-smart-desk.mjs  builds public/models/smart-desk.glb and the hinge angles in
+                           src/products/definitions/smart-desk.geometry.json
   generate-device-bundle.mjs  builds public/models/device-bundle.glb
 public/models/             glTF binaries served as static files
 docs/ARCHITECTURE.md       data flow in more detail
@@ -81,11 +82,16 @@ its polygon count.
 - **Nest what moves together.** Parenting is the only way the configurator knows that a screen
   is attached to the top: hiding a node hides its children, and a `pose` offset on a node moves
   everything below it. Put the top and whatever is mounted on it under one empty
-  (`TopAssembly > Top, TouchScreenPivot > TouchScreen, MonitorMount > Monitor4K > SideMonitorLeft`)
-  so that raising the top raises the screens, and leave fixed parts (legs) at the root.
+  (`TopAssembly > Top, TouchScreens > TouchScreenPivot_27 > TouchScreen_27, MonitorMount >
+Monitor4K > SideMonitorLeft`) so that raising the top raises the screens, and leave fixed parts
+  (legs) at the root.
 - **Hinged parts rotate around their parent's origin.** A `pose` rotates a node around its own
-  origin, so give a hinged part a parent empty placed on the hinge line (`TouchScreenPivot` on
-  the rear edge of the touch screen) and pose that pivot.
+  origin, so give a hinged part a parent empty placed on the hinge line (`TouchScreenPivot_<size>`
+  along the front edge of the touch screen, so a positive X rotation raises the far edge like a
+  drafting table) and pose that pivot.
+- **Sizes are separate objects.** The touch screen ships as one recess + pivot + screen per size
+  (`TouchScreenRecess_24`, `TouchScreenPivot_24`, ...) under a common `TouchScreens` empty; a
+  `variant` group shows one size and a `toggle` on the parent hides them all.
 - Give materials meaningful names (`Top`, `Frame`). Material presets are applied per part on
   a clone of the original material, so baked-in textures (normal maps etc.) are kept unless a
   preset overrides them.
@@ -205,12 +211,17 @@ export const smartDesk: ProductDefinitionInput = {
         {
           id: 'tilt30',
           label: '30°',
-          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-30, 0, 0] }],
+          transforms: [{ nodes: ['TouchScreenPivot_27'], rotation: [30, 0, 0] }],
         },
         {
-          id: 'tilt45',
-          label: '45°',
-          transforms: [{ nodes: ['TouchScreenPivot'], rotation: [-45, 0, 0] }],
+          // One option may pose several nodes with different values, e.g. each screen size's
+          // pivot by the angle at which its far edge meets the 4K screen.
+          id: 'drafting',
+          label: 'Drafting (meets 4K screen)',
+          transforms: [
+            { nodes: ['TouchScreenPivot_24'], rotation: [58.2, 0, 0] },
+            { nodes: ['TouchScreenPivot_27'], rotation: [49.1, 0, 0] },
+          ],
         },
       ],
     },
@@ -237,6 +248,17 @@ Every push to `main` builds the app and deploys it to GitHub Pages at
 `--base=/ProductConfigurator/`, then `actions/deploy-pages`). The workflow can also be run by hand
 from the repository's **Actions** tab via _Run workflow_. Static assets referenced from product
 definitions must go through `publicAsset()` so they resolve under the deployment sub-path.
+
+## Smart desk geometry
+
+The placeholder smart desk keeps the touch screen and the 4K screen in a fixed relationship:
+the touch screen lies flush in the top with its hinge along the front edge, and its steepest
+preset raises the far edge until it stops just under the bottom edge of the 4K screen. Because a
+larger panel reaches that edge at a shallower angle, `scripts/generate-smart-desk.mjs` solves the
+angle and the hinge position per size from the 4K screen's position and writes them to
+`src/products/definitions/smart-desk.geometry.json`, which the definition imports for the
+"Drafting" option. Change the screen sizes or the 4K mount in the generator, run
+`npm run generate:models`, and the presets follow.
 
 ## Known limitations
 

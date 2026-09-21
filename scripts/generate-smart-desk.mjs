@@ -1,26 +1,28 @@
 /**
- * Generates `public/models/smart-desk.glb`, the placeholder smart desk.
+ * Generates `public/models/smart-desk.glb`, the placeholder smart desk, and
+ * `src/products/definitions/smart-desk.geometry.json` with the hinge angles the
+ * definition needs to line the touch screen up with the 4K screen.
  *
  * Everything that must rise with the desk top lives under `TopAssembly`, so a single
  * pose offset on that node lifts the top, screens, drawer and trays together:
  *
  *   TopAssembly
  *     Top, Drawer, CableTray, KeyboardTray
- *     TouchScreenPivot (on the hinge line)  > TouchScreen
- *     MonitorMount > Monitor4K > SideMonitorLeft, SideMonitorRight
+ *     TouchScreens > TouchScreenRecess_<size>, TouchScreenPivot_<size> > TouchScreen_<size>
+ *     MonitorMount > MonitorMount_Arm > Monitor4K > SideMonitorLeft, SideMonitorRight
  *     Leg_C_Lift (telescoping inner columns + beam of the sit/stand frame)
  *   Leg_A_*, Leg_B_*, Leg_C_* (fixed leg variants)
  *
  * Usage: `npm run generate:models`
  */
+import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GltfBuilder, quat } from './gltf-builder.mjs';
 
-const OUT_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../public/models/smart-desk.glb',
-);
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const OUT_PATH = resolve(ROOT, 'public/models/smart-desk.glb');
+const GEOMETRY_PATH = resolve(ROOT, 'src/products/definitions/smart-desk.geometry.json');
 
 const b = new GltfBuilder('SmartDesk');
 
@@ -74,29 +76,75 @@ const keyboardTray = b.node('KeyboardTray', {
   ],
 });
 
-// Touch screen: sits proud of the top by 4 mm; the pivot is on its rear bottom edge so a
-// negative X rotation lifts the front edge like a drafting table.
-const SCREEN = { w: 0.5, h: 0.012, d: 0.32, rearZ: -0.1 };
-const touchScreenPivot = b.node('TouchScreenPivot', {
-  position: [0, TOP_SURFACE - 0.008, SCREEN.rearZ],
-  children: [
-    b.node('TouchScreen', {
-      position: [0, SCREEN.h / 2, SCREEN.d / 2],
-      mesh: b.box('TouchScreen_BodyMesh', [SCREEN.w, SCREEN.h, SCREEN.d], materials.bezel, 0.004),
+// 4K screen on a rear-edge mount: a clamp and post at the back of the top, an arm that
+// reaches forward to the back of the display. Side monitors hang off the 4K screen and are
+// angled 15 degrees towards the user around their inner edge. Positions are relative to the
+// desk top surface (`MonitorMount` sits on it).
+const MON = { w: 0.96, h: 0.54, t: 0.03, bottomY: 0.26, frontZ: -0.15 };
+const MOUNT = { z: -0.33, postRadius: 0.02 };
+const SIDE = { w: 0.28, h: 0.5, t: 0.03, yaw: 15 };
+
+// Touch screen sizes (16:9 diagonals). Each panel lies flush in the top with its hinge along
+// the FRONT edge; tilting raises the far edge like a drafting table. The steepest preset is
+// solved per size so the far edge stops just under the bottom edge of the 4K screen:
+//   far edge at tilt θ = (D·sinθ, hingeZ − D·cosθ)  →  θ = asin(targetY / D), hingeZ = targetZ + D·cosθ
+const TOUCH = { bodyH: 0.012, panelInset: 0.015, gap: 0.006, hingeRadius: 0.006 };
+const TOUCH_TARGET = { y: MON.bottomY - TOUCH.gap, z: MON.frontZ + TOUCH.gap };
+const TOUCH_SIZES = [24, 27, 32].map((inches) => {
+  const diagonal = inches * 0.0254;
+  const depth = diagonal * (9 / Math.sqrt(16 * 16 + 9 * 9));
+  const width = depth * (16 / 9);
+  const draftingAngle = (Math.asin(TOUCH_TARGET.y / depth) * 180) / Math.PI;
+  const hingeZ = TOUCH_TARGET.z + depth * Math.cos(RAD(draftingAngle));
+  return { inches, width, depth, draftingAngle, hingeZ };
+});
+
+/** One touch screen size: a recess in the top plus a pivot on the front edge carrying the screen. */
+function touchScreen({ inches, width, depth, hingeZ }) {
+  const name = `TouchScreen_${inches}`;
+  const recessMargin = 0.008;
+  return [
+    b.node(`TouchScreenRecess_${inches}`, {
+      position: [0, TOP_SURFACE + 0.0005, hingeZ - depth / 2],
+      mesh: b.box(
+        `${name}_RecessMesh`,
+        [width + 2 * recessMargin, 0.001, depth + 2 * recessMargin],
+        materials.tray,
+      ),
+    }),
+    b.node(`TouchScreenPivot_${inches}`, {
+      // Hinge line: top of the screen body, along the front edge, 1.5 mm above the top surface.
+      position: [0, TOP_SURFACE + 0.0015, hingeZ],
       children: [
-        b.node('TouchScreen_Panel', {
-          position: [0, SCREEN.h / 2 + 0.0005, 0],
-          mesh: b.box('TouchScreen_PanelMesh', [0.47, 0.001, 0.29], materials.screen),
+        b.node(`${name}_Hinge`, {
+          rotation: quat([0, 0, 1], 90),
+          mesh: b.cylinder(
+            `${name}_HingeMesh`,
+            { radiusTop: TOUCH.hingeRadius, height: width + 0.02 },
+            materials.frame,
+            24,
+          ),
+        }),
+        b.node(name, {
+          position: [0, -TOUCH.bodyH / 2, -depth / 2],
+          mesh: b.box(`${name}_BodyMesh`, [width, TOUCH.bodyH, depth], materials.bezel, 0.003),
+          children: [
+            b.node(`${name}_Panel`, {
+              position: [0, TOUCH.bodyH / 2 + 0.0005, 0],
+              mesh: b.box(
+                `${name}_PanelMesh`,
+                [width - TOUCH.panelInset, 0.001, depth - TOUCH.panelInset],
+                materials.screen,
+              ),
+            }),
+          ],
         }),
       ],
     }),
-  ],
-});
+  ];
+}
+const touchScreens = b.node('TouchScreens', { children: TOUCH_SIZES.flatMap(touchScreen) });
 
-// Monitor mount at the rear edge; the 4K screen hangs from the post, side monitors hang
-// off the 4K screen and are angled 15 degrees towards the user around their inner edge.
-const MON = { w: 0.96, h: 0.54, t: 0.03 };
-const SIDE = { w: 0.28, h: 0.5, t: 0.03, yaw: 15 };
 function display(name, { w, h, t }) {
   return {
     mesh: b.box(`${name}_BodyMesh`, [w, h, t], materials.bezel, 0.006),
@@ -121,22 +169,34 @@ function sideMonitor(side) {
     ],
   });
 }
+const monCentreY = MON.bottomY + MON.h / 2;
+const monCentreZ = MON.frontZ - MON.t / 2;
 const monitor4K = b.node('Monitor4K', {
-  position: [0, 0.4, 0.03],
+  // Relative to `MonitorMount`, which sits on the top surface at the rear edge.
+  position: [0, monCentreY, monCentreZ - MOUNT.z],
   ...display('Monitor4K', MON),
 });
 monitor4K.addChild(sideMonitor('Left'));
 monitor4K.addChild(sideMonitor('Right'));
+const armLength = monCentreZ - MON.t / 2 - MOUNT.z;
 const monitorMount = b.node('MonitorMount', {
-  position: [0, TOP_SURFACE, -0.31],
+  position: [0, TOP_SURFACE, MOUNT.z],
   children: [
     b.node('MonitorMount_Base', {
       position: [0, 0.006, 0],
-      mesh: b.box('MonitorMount_BaseMesh', [0.3, 0.012, 0.1], materials.frame, 0.004),
+      mesh: b.box('MonitorMount_BaseMesh', [0.16, 0.012, 0.05], materials.frame, 0.004),
     }),
     b.node('MonitorMount_Post', {
-      position: [0, 0.21, 0],
-      mesh: b.cylinder('MonitorMount_PostMesh', { radiusTop: 0.02, height: 0.42 }, materials.frame),
+      position: [0, monCentreY / 2, 0],
+      mesh: b.cylinder(
+        'MonitorMount_PostMesh',
+        { radiusTop: MOUNT.postRadius, height: monCentreY },
+        materials.frame,
+      ),
+    }),
+    b.node('MonitorMount_Arm', {
+      position: [0, monCentreY, armLength / 2],
+      mesh: b.box('MonitorMount_ArmMesh', [0.04, 0.03, armLength], materials.frame, 0.004),
     }),
     monitor4K,
   ],
@@ -226,7 +286,7 @@ const lift = b.node('Leg_C_Lift', {
 
 b.add(
   b.node('TopAssembly', {
-    children: [top, drawer, cableTray, keyboardTray, touchScreenPivot, monitorMount, lift],
+    children: [top, drawer, cableTray, keyboardTray, touchScreens, monitorMount, lift],
   }),
   loopLeg('Leg_A_Left', -LEG_X),
   loopLeg('Leg_A_Right', LEG_X),
@@ -237,3 +297,22 @@ b.add(
 );
 
 await b.write(OUT_PATH);
+
+// The definition reads the solved angles so a regenerated model never drifts from its presets.
+const geometry = {
+  touchScreenSizes: TOUCH_SIZES.map(({ inches, width, depth, draftingAngle, hingeZ }) => ({
+    inches,
+    widthM: Number(width.toFixed(3)),
+    depthM: Number(depth.toFixed(3)),
+    hingeZ: Number(hingeZ.toFixed(3)),
+    draftingAngleDeg: Number(draftingAngle.toFixed(1)),
+  })),
+};
+await writeFile(GEOMETRY_PATH, `${JSON.stringify(geometry, null, 2)}\n`);
+console.log(`Wrote ${GEOMETRY_PATH}`);
+for (const size of geometry.touchScreenSizes) {
+  const rear = (size.hingeZ - size.depthM).toFixed(3);
+  console.log(
+    `  ${size.inches}": hinge z=${size.hingeZ}, flat rear edge z=${rear}, drafting ${size.draftingAngleDeg}°`,
+  );
+}
