@@ -30,6 +30,53 @@ export const materialPresetSchema = z.object({
     .optional(),
 });
 
+/** Layouts a screen can show; `layoutPanes()` in `src/screens/layouts.ts` defines their panes. */
+export const LAYOUT_IDS = [
+  'single',
+  'two-up',
+  'three-column',
+  'grid-2x2',
+  'sidebar-main',
+  'pip',
+  'stack',
+] as const;
+/** Workflow presets; each fills the panes with abstract app mockups (`src/screens/workflows.ts`). */
+export const WORKFLOW_IDS = ['design', 'trading', 'coding', 'video', 'writing'] as const;
+/** Abstract desktop chrome styles (`src/screens/os.ts`). */
+export const OS_IDS = ['mac', 'windows', 'linux', 'chromeos'] as const;
+
+/** What a screen shows. Screen groups patch these facets; the part's declaration sets defaults. */
+export const screenContentSchema = z.object({
+  layout: z.enum(LAYOUT_IDS).default('single'),
+  workflow: z.enum(WORKFLOW_IDS).default('design'),
+  os: z.enum(OS_IDS).default('mac'),
+});
+
+/**
+ * The facets a screen option changes; unset facets keep their value. Written out instead
+ * of `screenContentSchema.partial()` because zod still applies field defaults inside a
+ * partial, which would make every option reset the other facets.
+ */
+export const screenContentPatchSchema = z.object({
+  layout: z.enum(LAYOUT_IDS).optional(),
+  workflow: z.enum(WORKFLOW_IDS).optional(),
+  os: z.enum(OS_IDS).optional(),
+});
+
+/**
+ * A display surface on a part. `node` is the glTF node holding the panel mesh: a thin box or
+ * plane whose texture U runs along local +X and V along local +Y (vertical panel facing +Z)
+ * or local -Z (horizontal panel facing +Y). The pixel size only sets the aspect ratio and the
+ * texture resolution; `kind: 'touch'` swaps window mockups for touch-friendly controls.
+ */
+export const screenDefinitionSchema = z.object({
+  node: z.string().min(1),
+  widthPx: z.number().int().positive(),
+  heightPx: z.number().int().positive(),
+  kind: z.enum(['display', 'touch']).default('display'),
+  content: screenContentSchema.prefault({}),
+});
+
 export const partDefinitionSchema = z.object({
   id: identifier,
   /** Human-readable name shown in the UI where relevant. */
@@ -40,6 +87,13 @@ export const partDefinitionSchema = z.object({
   group: z.string().optional(),
   /** Parts that may be hidden (by a toggle group) must be flagged optional. */
   optional: z.boolean().default(false),
+  /**
+   * A part declared earlier whose nodes contain this part's nodes, e.g. one screen size under
+   * the touch screen assembly. The part counts as hidden whenever its parent is hidden.
+   */
+  partOf: identifier.optional(),
+  /** Display surfaces on this part that render in-screen content. */
+  screens: z.array(screenDefinitionSchema).default([]),
 });
 
 /**
@@ -128,12 +182,25 @@ export const poseGroupSchema = groupBase.extend({
     .min(1),
 });
 
+/**
+ * Sets one or more content facets (layout, workflow, OS) on the screens of the target parts.
+ * Facets from several groups merge in declaration order, so one group can pick the OS for every
+ * screen while another chooses the layout of a single screen. The group is unavailable while
+ * every target part is hidden.
+ */
+export const screenGroupSchema = groupBase.extend({
+  type: z.literal('screen'),
+  targets: z.array(identifier).min(1),
+  options: z.array(optionBase.extend({ content: screenContentPatchSchema })).min(1),
+});
+
 export const optionGroupSchema = z.discriminatedUnion('type', [
   variantGroupSchema,
   materialGroupSchema,
   toggleGroupSchema,
   dimensionGroupSchema,
   poseGroupSchema,
+  screenGroupSchema,
 ]);
 
 export const productDefinitionSchema = z
@@ -158,6 +225,7 @@ export const productDefinitionSchema = z
   .superRefine((product, ctx) => {
     const partIds = new Set(product.parts.map((part) => part.id));
     const optionalParts = new Set(product.parts.filter((p) => p.optional).map((p) => p.id));
+    const screenParts = new Set(product.parts.filter((p) => p.screens.length).map((p) => p.id));
     /** Groups declared so far, so requirements can only point backwards. */
     const declaredGroups = new Map<string, z.output<typeof optionGroupSchema>>();
 
@@ -166,6 +234,18 @@ export const productDefinitionSchema = z
         ctx.addIssue({ code: 'custom', path, message: `unknown part "${partId}"` });
       }
     };
+
+    product.parts.forEach((part, index) => {
+      if (part.partOf === undefined) return;
+      const parentIndex = product.parts.findIndex((candidate) => candidate.id === part.partOf);
+      if (parentIndex === -1 || parentIndex >= index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['parts', index, 'partOf'],
+          message: `"${part.partOf}" must be a part declared earlier`,
+        });
+      }
+    });
 
     const checkRequirements = (
       requires: z.output<typeof requirementSchema>[],
@@ -241,6 +321,18 @@ export const productDefinitionSchema = z
             });
           }
           break;
+        case 'screen':
+          group.targets.forEach((partId, i) => {
+            requirePart(partId, [...path, 'targets', i]);
+            if (partIds.has(partId) && !screenParts.has(partId)) {
+              ctx.addIssue({
+                code: 'custom',
+                path: [...path, 'targets', i],
+                message: `part "${partId}" declares no screens`,
+              });
+            }
+          });
+          break;
         case 'pose':
           break;
       }
@@ -263,6 +355,12 @@ export type MaterialGroup = z.output<typeof materialGroupSchema>;
 export type ToggleGroup = z.output<typeof toggleGroupSchema>;
 export type DimensionGroup = z.output<typeof dimensionGroupSchema>;
 export type PoseGroup = z.output<typeof poseGroupSchema>;
+export type ScreenGroup = z.output<typeof screenGroupSchema>;
+export type ScreenDefinition = z.output<typeof screenDefinitionSchema>;
+export type ScreenContent = z.output<typeof screenContentSchema>;
+export type LayoutId = ScreenContent['layout'];
+export type WorkflowId = ScreenContent['workflow'];
+export type OsId = ScreenContent['os'];
 export type Option = OptionGroup['options'][number];
 export type Axis = DimensionGroup['axis'];
 

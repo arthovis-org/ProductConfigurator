@@ -9,6 +9,8 @@ import type {
   OptionGroup,
   ProductDefinition,
   Requirement,
+  ScreenContent,
+  ScreenDefinition,
 } from '@/products/schema';
 
 /** Selected option id per option-group id. */
@@ -23,6 +25,13 @@ export interface NodeScale {
 export interface NodePose {
   rotation: [number, number, number];
   position: [number, number, number];
+}
+
+/** A display surface with the content it should show, keyed by its panel node name. */
+export interface ResolvedScreen {
+  partId: string;
+  screen: ScreenDefinition;
+  content: ScreenContent;
 }
 
 export interface PriceLine {
@@ -42,6 +51,8 @@ export interface ResolvedConfiguration {
   nodeScales: ReadonlyMap<string, NodeScale>;
   /** Pose offset per node name, applied on top of the authored transform. */
   nodePoses: ReadonlyMap<string, NodePose>;
+  /** Content per screen panel node, for every part that declares screens (hidden ones too). */
+  screens: ReadonlyMap<string, ResolvedScreen>;
   priceLines: readonly PriceLine[];
   totalPrice: number;
 }
@@ -104,6 +115,27 @@ function describeRequirement(product: ProductDefinition, requirement: Requiremen
   return isOnState ? `Requires ${group.label}` : `Requires ${group.label}: ${labels.join(' or ')}`;
 }
 
+/** Part ids hidden by the current selections: unselected variants and switched-off toggles. */
+export function resolveHiddenParts(
+  product: ProductDefinition,
+  selections: Selections,
+): ReadonlySet<string> {
+  const hidden = new Set<string>();
+  for (const group of product.optionGroups) {
+    if (group.type === 'variant') {
+      const shown = new Set(selectedOption(group, selections).parts);
+      for (const option of group.options)
+        for (const partId of option.parts) if (!shown.has(partId)) hidden.add(partId);
+    } else if (group.type === 'toggle' && !selectedOption(group, selections).visible) {
+      hidden.add(group.part);
+    }
+  }
+  // Parents are declared before their children, so one pass propagates visibility.
+  for (const part of product.parts)
+    if (part.partOf !== undefined && hidden.has(part.partOf)) hidden.add(part.id);
+  return hidden;
+}
+
 /** Evaluates `requires` for every group and option against sanitised selections. */
 export function resolveAvailability(
   product: ProductDefinition,
@@ -111,6 +143,7 @@ export function resolveAvailability(
 ): ReadonlyMap<string, GroupAvailability> {
   const failing = (requires: readonly Requirement[]) =>
     requires.find((requirement) => !requirementHolds(requirement, selections));
+  const hiddenParts = resolveHiddenParts(product, selections);
 
   return new Map(
     product.optionGroups.map((group) => {
@@ -119,9 +152,22 @@ export function resolveAvailability(
       const unavailableOptionIds = new Set(
         group.options.filter((option) => failing(option.requires)).map((option) => option.id),
       );
-      const availability: GroupAvailability = blocker
-        ? { available: false, hint: describeRequirement(product, blocker), unavailableOptionIds }
-        : { available: true, unavailableOptionIds };
+      let availability: GroupAvailability;
+      if (blocker) {
+        availability = {
+          available: false,
+          hint: describeRequirement(product, blocker),
+          unavailableOptionIds,
+        };
+      } else if (
+        group.type === 'screen' &&
+        group.targets.every((partId) => hiddenParts.has(partId))
+      ) {
+        // A screen group is pointless while none of its screens is on the model.
+        availability = { available: false, hint: 'Requires a screen', unavailableOptionIds };
+      } else {
+        availability = { available: true, unavailableOptionIds };
+      }
       return [group.id, availability];
     }),
   );
@@ -163,6 +209,18 @@ export function resolveConfiguration(
   const nodeScales = new Map<string, NodeScale>();
   const nodePoses = new Map<string, NodePose>();
   const priceLines: PriceLine[] = [];
+  const screens = new Map<string, ResolvedScreen>();
+  for (const part of product.parts) {
+    for (const screen of part.screens) {
+      screens.set(screen.node, {
+        partId: part.id,
+        screen,
+        content: { ...screen.content },
+      });
+    }
+  }
+  const screensOfParts = (partIds: readonly string[]) =>
+    [...screens.values()].filter((entry) => partIds.includes(entry.partId));
 
   for (const group of product.optionGroups) {
     let option: Option;
@@ -211,6 +269,20 @@ export function resolveConfiguration(
         option = chosen;
         break;
       }
+      case 'screen': {
+        const chosen = selectedOption(group, selections);
+        // Later groups override earlier ones facet by facet.
+        for (const entry of screensOfParts(group.targets)) {
+          const { content } = entry;
+          entry.content = {
+            layout: chosen.content.layout ?? content.layout,
+            workflow: chosen.content.workflow ?? content.workflow,
+            os: chosen.content.os ?? content.os,
+          };
+        }
+        option = chosen;
+        break;
+      }
     }
 
     if (option.priceDelta !== 0) {
@@ -224,5 +296,13 @@ export function resolveConfiguration(
   }
 
   const totalPrice = priceLines.reduce((sum, line) => sum + line.priceDelta, product.basePrice);
-  return { hiddenNodes, materialAssignments, nodeScales, nodePoses, priceLines, totalPrice };
+  return {
+    hiddenNodes,
+    materialAssignments,
+    nodeScales,
+    nodePoses,
+    screens,
+    priceLines,
+    totalPrice,
+  };
 }

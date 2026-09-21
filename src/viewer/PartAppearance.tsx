@@ -10,7 +10,7 @@ import {
   type Texture,
 } from 'three';
 import type { MaterialPreset } from '@/products/schema';
-import { collectMeshes } from './nodeUtils';
+import { swapMaterials } from './nodeUtils';
 
 interface PartAppearanceProps {
   node: Object3D;
@@ -76,19 +76,11 @@ function AppearanceEffect({
       return clone;
     };
 
-    const swapped = collectMeshes(node).map((mesh) => {
-      const original = mesh.material;
-      const clones = Array.isArray(original) ? original.map(applyPreset) : [applyPreset(original)];
-      mesh.material = Array.isArray(original) ? clones : (clones[0] ?? original);
-      return { mesh, original, clones };
-    });
+    const restore = swapMaterials(node, applyPreset);
     invalidate();
 
     return () => {
-      for (const { mesh, original, clones } of swapped) {
-        mesh.material = original;
-        for (const clone of clones) clone.dispose();
-      }
+      restore();
       invalidate();
     };
   }, [node, preset, textures, invalidate]);

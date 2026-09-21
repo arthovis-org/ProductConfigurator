@@ -3,8 +3,13 @@ import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import { Euler, MathUtils, Quaternion, type Object3D, type Vector3 } from 'three';
 import { useProduct, useResolvedConfiguration } from '@/state/configuratorStore';
+import type { ResolvedConfiguration } from '@/state/derive';
 import type { MaterialPreset, ProductDefinition } from '@/products/schema';
+import { internSpec } from '@/screens/renderScreen';
+import { measurePanel } from './panelFrame';
 import { PartAppearance } from './PartAppearance';
+import { ScreenSurface } from './ScreenSurface';
+import { SpatialWorkspace, type VisibleScreen } from './SpatialWorkspace';
 
 const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
 
@@ -16,9 +21,10 @@ interface ConfigurableNode {
   baseQuaternion: Quaternion;
 }
 
-/** Every node name a definition refers to: part nodes plus pose targets. */
+/** Every node name a definition refers to: part nodes, screen panels and pose targets. */
 function referencedNodeNames(product: ProductDefinition): Set<string> {
   const names = new Set(product.parts.flatMap((part) => part.nodes));
+  for (const part of product.parts) for (const screen of part.screens) names.add(screen.node);
   for (const group of product.optionGroups) {
     if (group.type !== 'pose') continue;
     for (const option of group.options)
@@ -47,6 +53,31 @@ function resolveNodes(scene: Object3D, product: ProductDefinition) {
     } else console.warn(`[configurator] node "${name}" not found in ${product.model.src}`);
   }
   return nodes;
+}
+
+/** A node is off the model when it or any ancestor is hidden. */
+function isHidden(node: Object3D, hiddenNodes: ReadonlySet<string>): boolean {
+  for (let current: Object3D | null = node; current; current = current.parent)
+    if (hiddenNodes.has(current.name)) return true;
+  return false;
+}
+
+/** Screens whose panel is on the model, with their content and panel geometry. */
+function visibleScreens(
+  nodes: ReadonlyMap<string, ConfigurableNode>,
+  config: Pick<ResolvedConfiguration, 'screens' | 'hiddenNodes'>,
+): VisibleScreen[] {
+  const result: VisibleScreen[] = [];
+  for (const [name, resolved] of config.screens) {
+    const target = nodes.get(name);
+    if (!target || isHidden(target.node, config.hiddenNodes)) continue;
+    const frame = measurePanel(target.node);
+    if (!frame) continue;
+    const { widthPx, heightPx, kind } = resolved.screen;
+    const spec = internSpec({ widthPx, heightPx, kind, content: resolved.content });
+    result.push({ node: target.node, spec, frame });
+  }
+  return result;
 }
 
 /** Loads the product glTF and applies the resolved configuration to its nodes. */
@@ -96,6 +127,11 @@ export function ProductModel() {
     invalidate();
   }, [nodes, config.hiddenNodes, config.nodeScales, config.nodePoses, invalidate]);
 
+  const screens = useMemo(
+    () => visibleScreens(nodes, { screens: config.screens, hiddenNodes: config.hiddenNodes }),
+    [nodes, config.screens, config.hiddenNodes],
+  );
+
   const materialTargets: { name: string; node: Object3D; preset: MaterialPreset }[] = [];
   for (const [name, preset] of config.materialAssignments) {
     const target = nodes.get(name);
@@ -116,6 +152,10 @@ export function ProductModel() {
         {materialTargets.map(({ name, node, preset }) => (
           <PartAppearance key={name} node={node} preset={preset} />
         ))}
+        {screens.map(({ node, spec }) => (
+          <ScreenSurface key={node.uuid} node={node} spec={spec} />
+        ))}
+        <SpatialWorkspace screens={screens} />
       </group>
     </Center>
   );
