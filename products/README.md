@@ -171,13 +171,18 @@ Everything is optional. Keys refer to names from Blender (case and underscores d
 
 - `options.<Name>`: for a toggle, `price` is the price when on and `default` is `true`/`false`.
   For a variant, `default` names the initial choice and `choices` holds per-choice labels and
-  prices.
+  prices. `includes` merges toggles into one option without renaming anything in Blender:
+  `"SideMonitors": { "includes": ["MonitorLeft", "MonitorRight"], "price": 399 }`.
 - `materials.<Material>.choices`: settings for image choices (price, label, roughness,
   metalness), or colour-only choices with `color`. `"original": false` hides "As modelled";
   a string renames it.
-- `height`: `min` / `max` should stay within what the leg stages can do without separating.
-  `modelled` sets the model's height instead of measuring it, `reference` names the object to
-  measure, `speed` is units per second.
+- `height`: `min` / `max` should stay within what the leg stages can do: at `max` each stage
+  should still overlap the next, and at `min` none should go below the floor. Without
+  `initial` the desk starts at the height it was exported at.
+  `reference` names the desk-top object; its own top surface is the height (recommended when
+  large parts such as monitor panels are parented to the top). Without it, the widest mesh
+  under the `Lift100` objects is used. `modelled` sets the exported height instead of
+  measuring it; `speed` is units per second.
 - `order`: position in the product switcher; the lowest is the default product.
 
 ## Keeping models outside the repository
