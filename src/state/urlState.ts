@@ -8,11 +8,14 @@ const PRODUCT_PARAM = 'product';
 const CONFIG_PARAM = 'c';
 
 export function encodeConfigSearch(productId: string, selections: Selections): string {
-  const params = new URLSearchParams();
-  params.set(PRODUCT_PARAM, productId);
-  const pairs = Object.entries(selections).map(([groupId, optionId]) => `${groupId}:${optionId}`);
-  if (pairs.length > 0) params.set(CONFIG_PARAM, pairs.join(','));
-  return `?${params.toString()}`;
+  // Built by hand rather than with URLSearchParams, which escapes `:` and `,` and turns a
+  // shared link into `%3A`/`%2C` soup. Ids are lowercase letters, digits and dashes, so
+  // encodeURIComponent leaves them readable; only the separators are literal.
+  const pairs = Object.entries(selections).map(
+    ([groupId, optionId]) => `${encodeURIComponent(groupId)}:${encodeURIComponent(optionId)}`,
+  );
+  const config = pairs.length > 0 ? `&${CONFIG_PARAM}=${pairs.join(',')}` : '';
+  return `?${PRODUCT_PARAM}=${encodeURIComponent(productId)}${config}`;
 }
 
 export function decodeConfigSearch(search: string): {
