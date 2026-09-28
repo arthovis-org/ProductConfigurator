@@ -1,0 +1,22 @@
+{
+  "name": "Smart Desk",
+  "description": "Motorised sit-stand desk with three-stage legs and an integrated monitor setup.",
+  "currency": "EUR",
+  "basePrice": 749,
+  "options": {
+    "MonitorLeft": { "label": "Left monitor", "price": 229 },
+    "MonitorRight": { "label": "Right monitor", "price": 229 },
+    "MonitorBottom": { "label": "Desk monitor", "price": 299 }
+  },
+  "materials": {
+    "DeskMat": {
+      "label": "Desk top",
+      "default": "american-oak",
+      "original": "White laminate",
+      "choices": {
+        "american-oak": { "price": 120 },
+        "walnut": { "price": 180 }
+      }
+    }
+  }
+}

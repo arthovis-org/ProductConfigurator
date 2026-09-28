@@ -1,9 +1,11 @@
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { catalog } from './scripts/vite-plugin-catalog.ts';
 
 export default defineConfig({
-  plugins: [react()],
+  // `catalog` turns every products/<id>/ folder into a configurator (virtual:catalog).
+  plugins: [react(), catalog()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

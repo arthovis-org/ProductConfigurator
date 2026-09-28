@@ -1,6 +1,5 @@
-import type { OptionGroup } from '@/products/schema';
+import type { OptionGroup } from '@/catalog/schema';
 import { useProduct } from '@/state/configuratorStore';
-import { optionDisplayLabel } from '@/state/derive';
 import { MaterialSwatches } from './controls/MaterialSwatches';
 import { SegmentedControl } from './controls/SegmentedControl';
 import { Switch } from './controls/Switch';
@@ -27,12 +26,11 @@ export function OptionGroupControl({ group, selectedOptionId, onSelect }: Option
         />
       );
     case 'variant':
-    case 'dimension':
       return (
         <SegmentedControl
           items={group.options.map((option) => ({
             id: option.id,
-            label: optionDisplayLabel(group, option),
+            label: option.label,
             hint: formatPriceDelta(option.priceDelta, currency),
           }))}
           selectedId={selectedOptionId}

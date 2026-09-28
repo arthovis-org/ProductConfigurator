@@ -4,8 +4,12 @@ import { Suspense } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
 import { StudioEnvironment } from './StudioEnvironment';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
+import { preloadCurrentProduct } from './models';
 import { ProductModel } from './ProductModel';
 import styles from './Scene.module.css';
+
+// This module is loaded lazily, and this is the earliest point where three is available.
+preloadCurrentProduct();
 
 /** Studio-style viewer: soft environment light, contact shadow, damped orbit controls. */
 export function Scene() {
@@ -16,7 +20,7 @@ export function Scene() {
         frameloop="demand"
         dpr={[1, 2]}
         camera={{ position: [2.2, 1.4, 2.6], fov: 35, near: 0.05, far: 50 }}
-        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+        gl={{ antialias: true, alpha: true }}
       >
         <ViewerErrorBoundary>
           <Suspense fallback={<LoadingIndicator />}>
@@ -32,7 +36,8 @@ export function Scene() {
           opacity={0.55}
           scale={5}
           blur={1.6}
-          far={1}
+          // Tall enough to catch a desk top at standing height.
+          far={2}
           resolution={1024}
         />
         <OrbitControls

@@ -1,11 +1,16 @@
 import { useConfiguratorStore, useProduct, useSelections } from '@/state/configuratorStore';
-import { optionDisplayLabel, selectedOption } from '@/state/derive';
+import { selectedOption } from '@/state/derive';
 import styles from './ConfiguratorPanel.module.css';
+import { MotionControl } from './controls/MotionControl';
+import { ModelCheck } from './ModelCheck';
 import { OptionGroupControl } from './OptionGroupControl';
 import { PriceSummary } from './PriceSummary';
 import { formatPriceDelta } from './formatPrice';
 
-/** Lists every option group of the current product, followed by the price summary. */
+/**
+ * Lists the product's motions (live demo controls), then every option group, followed by the
+ * price summary.
+ */
 export function ConfiguratorPanel() {
   const product = useProduct();
   const selections = useSelections();
@@ -13,7 +18,21 @@ export function ConfiguratorPanel() {
 
   return (
     <div className={styles.panel}>
-      <p className={styles.description}>{product.description}</p>
+      <ModelCheck />
+      {product.description && <p className={styles.description}>{product.description}</p>}
+
+      {product.motions.map((motion) => (
+        <section key={motion.id} className={styles.group} aria-labelledby={`motion-${motion.id}`}>
+          <div className={styles.groupHeader}>
+            <h2 id={`motion-${motion.id}`} className={styles.groupLabel}>
+              {motion.label}
+            </h2>
+            <span className={styles.demoBadge}>Live demo</span>
+          </div>
+          {motion.description && <p className={styles.groupDescription}>{motion.description}</p>}
+          <MotionControl motion={motion} />
+        </section>
+      ))}
 
       {product.optionGroups.map((group) => {
         const option = selectedOption(group, selections);
@@ -25,7 +44,7 @@ export function ConfiguratorPanel() {
                 {group.label}
               </h2>
               <span className={styles.selected}>
-                {optionDisplayLabel(group, option)}
+                {option.label}
                 {delta && <span className={styles.delta}> {delta}</span>}
               </span>
             </div>

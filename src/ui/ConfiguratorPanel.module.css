@@ -44,6 +44,18 @@
   font-weight: 400;
 }
 
+.demoBadge {
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .groupDescription {
   margin: -0.25rem 0 0;
   font-size: 0.8125rem;

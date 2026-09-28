@@ -2,21 +2,10 @@
  * Pure functions that turn (product definition + selections) into what the
  * viewer and UI need. Kept free of React and zustand so they are easy to test.
  */
-import type {
-  Axis,
-  MaterialPreset,
-  Option,
-  OptionGroup,
-  ProductDefinition,
-} from '@/products/schema';
+import type { MaterialPreset, Option, OptionGroup, ProductDefinition } from '@/catalog/schema';
 
 /** Selected option id per option-group id. */
 export type Selections = Readonly<Record<string, string>>;
-
-export interface NodeScale {
-  axis: Axis;
-  scale: number;
-}
 
 export interface PriceLine {
   groupId: string;
@@ -29,10 +18,8 @@ export interface PriceLine {
 export interface ResolvedConfiguration {
   /** Node names that must be hidden. Anything not listed stays visible. */
   hiddenNodes: ReadonlySet<string>;
-  /** Material preset per node name. */
+  /** Finish per Blender material name; materials not listed stay as modelled. */
   materialAssignments: ReadonlyMap<string, MaterialPreset>;
-  /** Non-uniform scale per node name. */
-  nodeScales: ReadonlyMap<string, NodeScale>;
   priceLines: readonly PriceLine[];
   totalPrice: number;
 }
@@ -50,11 +37,6 @@ export function sanitizeSelections(product: ProductDefinition, selections: Selec
       return [group.id, valid && selected ? selected : group.defaultOptionId];
     }),
   );
-}
-
-/** Label shown for a selected option; dimensions carry their unit. */
-export function optionDisplayLabel(group: OptionGroup, option: Option): string {
-  return group.type === 'dimension' ? `${option.label} ${group.unit}` : option.label;
 }
 
 export function selectedOption<G extends OptionGroup>(
@@ -80,7 +62,6 @@ export function resolveConfiguration(
 
   const hiddenNodes = new Set<string>();
   const materialAssignments = new Map<string, MaterialPreset>();
-  const nodeScales = new Map<string, NodeScale>();
   const priceLines: PriceLine[] = [];
 
   for (const group of product.optionGroups) {
@@ -96,8 +77,7 @@ export function resolveConfiguration(
       }
       case 'material': {
         const chosen = selectedOption(group, selections);
-        for (const node of nodesForParts(group.targets))
-          materialAssignments.set(node, chosen.material);
+        if (chosen.material) materialAssignments.set(group.materialName, chosen.material);
         option = chosen;
         break;
       }
@@ -107,26 +87,18 @@ export function resolveConfiguration(
         option = chosen;
         break;
       }
-      case 'dimension': {
-        const chosen = selectedOption(group, selections);
-        for (const node of nodesForParts(group.targets)) {
-          nodeScales.set(node, { axis: group.axis, scale: chosen.scale });
-        }
-        option = chosen;
-        break;
-      }
     }
 
     if (option.priceDelta !== 0) {
       priceLines.push({
         groupId: group.id,
         groupLabel: group.label,
-        optionLabel: optionDisplayLabel(group, option),
+        optionLabel: option.label,
         priceDelta: option.priceDelta,
       });
     }
   }
 
   const totalPrice = priceLines.reduce((sum, line) => sum + line.priceDelta, product.basePrice);
-  return { hiddenNodes, materialAssignments, nodeScales, priceLines, totalPrice };
+  return { hiddenNodes, materialAssignments, priceLines, totalPrice };
 }

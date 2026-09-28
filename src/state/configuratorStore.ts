@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/shallow';
-import { getProduct } from '@/products';
-import type { ProductDefinition } from '@/products/schema';
+import { getProduct } from '@/catalog';
+import type { ProductDefinition } from '@/catalog/schema';
 import {
   defaultSelections,
   resolveConfiguration,
@@ -26,11 +26,15 @@ interface ConfiguratorState {
   hydrate: (search: string) => void;
 }
 
-const initialProduct = getProduct(null);
+function stateFromSearch(search: string): Pick<ConfiguratorState, 'productId' | 'selections'> {
+  const decoded = decodeConfigSearch(search);
+  const product = getProduct(decoded.productId);
+  return { productId: product.id, selections: sanitizeSelections(product, decoded.selections) };
+}
 
 export const useConfiguratorStore = create<ConfiguratorState>()((set, get) => ({
-  productId: initialProduct.id,
-  selections: defaultSelections(initialProduct),
+  // Start from the URL so the first render already loads the linked product, not the default.
+  ...stateFromSearch(window.location.search),
 
   selectProduct: (productId) => {
     const product = getProduct(productId);
@@ -54,9 +58,7 @@ export const useConfiguratorStore = create<ConfiguratorState>()((set, get) => ({
   },
 
   hydrate: (search) => {
-    const decoded = decodeConfigSearch(search);
-    const product = getProduct(decoded.productId);
-    set({ productId: product.id, selections: sanitizeSelections(product, decoded.selections) });
+    set(stateFromSearch(search));
   },
 }));
 

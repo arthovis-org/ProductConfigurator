@@ -5,3 +5,7 @@ dist-ssr
 .DS_Store
 npm-debug.log*
 .eslintcache
+
+# Blender autosaves and backups
+*.blend1
+*.blend2

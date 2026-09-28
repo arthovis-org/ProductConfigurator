@@ -1,4 +1,4 @@
-import type { MaterialGroup } from '@/products/schema';
+import type { MaterialGroup } from '@/catalog/schema';
 import { formatPriceDelta } from '../formatPrice';
 import styles from './MaterialSwatches.module.css';
 
@@ -29,15 +29,15 @@ export function MaterialSwatches({
             aria-label={title}
             title={title}
             className={styles.swatch}
-            data-metallic={option.material.metalness > 0.5 || undefined}
+            data-metallic={(option.material?.metalness ?? 0) > 0.5 || undefined}
             onClick={() => onSelect(option.id)}
           >
             <span
-              className={styles.fill}
+              className={option.material ? styles.fill : `${styles.fill} ${styles.original}`}
               style={
                 option.thumbnail
                   ? { backgroundImage: `url(${option.thumbnail})` }
-                  : { backgroundColor: option.material.color }
+                  : option.material && { backgroundColor: option.material.color }
               }
             />
           </button>
