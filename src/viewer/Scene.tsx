@@ -49,7 +49,8 @@ export function Scene() {
           maxDistance={6}
           minPolarAngle={Math.PI / 8}
           maxPolarAngle={Math.PI / 2 - 0.02}
-          target={[0, 0.5, 0]}
+          // No fixed target: `Bounds` points the controls at the centre of what it frames,
+          // which includes the full height range of a motorised desk.
         />
       </Canvas>
     </div>

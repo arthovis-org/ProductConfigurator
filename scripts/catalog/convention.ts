@@ -113,6 +113,11 @@ const configSchema = z.strictObject({
         default: z.union([z.boolean(), z.string()]).optional(),
         /** Variant: per-choice labels and prices, keyed by the choice name from Blender. */
         choices: z.record(z.string(), choiceConfig).optional(),
+        /**
+         * Toggle: other toggles switched together with this one, e.g. "SideMonitors" with
+         * ["MonitorLeft", "MonitorRight"]. The key then names a new, combined option.
+         */
+        includes: z.array(z.string()).optional(),
       }),
     )
     .optional(),
@@ -501,7 +506,34 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
   }
 
   // --- Toggles -------------------------------------------------------------------------
-  for (const toggle of toggles.values()) {
+  // product.json may combine toggles into one option ("includes"). The combined option
+  // takes the place of the first toggle it absorbs, so the panel order follows the model.
+  const combinedInto = new Map<string, string>();
+  for (const [key, settings] of Object.entries(config.options ?? {})) {
+    for (const name of settings.includes ?? []) {
+      if (toggles.has(normalize(name))) combinedInto.set(normalize(name), key);
+      else {
+        issues.push(
+          `product.json: options.${key}.includes "${name}" matches no Toggle_${name} object`,
+        );
+      }
+    }
+  }
+  const panelToggles = new Map<string, NamedNodes>();
+  for (const [key, toggle] of toggles) {
+    const target = combinedInto.get(key);
+    if (!target) {
+      const existing = panelToggles.get(key);
+      if (existing) existing.nodes.unshift(...toggle.nodes);
+      else panelToggles.set(key, toggle);
+      continue;
+    }
+    const combined = panelToggles.get(normalize(target)) ?? { name: target, nodes: [] };
+    combined.nodes.push(...toggle.nodes);
+    panelToggles.set(normalize(target), combined);
+  }
+
+  for (const toggle of panelToggles.values()) {
     const settings = lookup(config.options, toggle.name, usedOptions);
     const id = toId(toggle.name);
     parts.push({
@@ -575,7 +607,10 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       ...(height?.initial !== undefined && { initial: height.initial }),
       ...(height?.modelled !== undefined
         ? { modelledValue: height.modelled }
-        : { referencePart: 'height-reference' }),
+        : {
+            referencePart: 'height-reference',
+            referenceMode: height?.reference ? ('object' as const) : ('widest' as const),
+          }),
       ...(height?.speed !== undefined && { speed: height.speed }),
       moves: [...lifts.keys()].map((factor) => ({
         parts: [`lift-${Math.round(factor * 100)}`],

@@ -1,11 +1,12 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { type Box3, Matrix3, Vector3, type Object3D } from 'three';
+import { type Box3, Matrix3, Vector3, type Mesh, type Object3D } from 'three';
 import type { Motion, ProductDefinition } from '@/catalog/schema';
 import { useMotionStore } from '@/state/motionStore';
 import {
   authoredPosition,
   collectMeshes,
+  isMesh,
   meshBounds,
   matrixRelativeTo,
   modelBounds,
@@ -46,9 +47,22 @@ function partNodes(product: ProductDefinition, index: NodeIndex, partIds: readon
 const FOOTPRINT_AXES = { x: ['y', 'z'], y: ['x', 'z'], z: ['x', 'y'] } as const;
 
 /**
- * The height the model was exported at: the upper surface of the widest mesh under the
- * reference part (for a desk, the top; not the monitor standing on it), above the lowest
- * point of the model (the floor), in units. Other parts nested below are skipped.
+ * Meshes that belong to one glTF node itself. A node with several materials becomes a group
+ * whose meshes are its primitives; those carry no Blender name of their own, unlike child
+ * objects parented to it in Blender, which are left out.
+ */
+function ownMeshes(node: Object3D): Mesh[] {
+  const meshes = isMesh(node) ? [node] : [];
+  for (const child of node.children) {
+    if (isMesh(child) && child.userData.name === undefined) meshes.push(child);
+  }
+  return meshes;
+}
+
+/**
+ * The height the model was exported at, in units above the lowest point of the model (the
+ * floor). With a named reference object (`height.reference`), its own top surface; else the
+ * top of the widest mesh under the reference part, skipping nested parts.
  */
 function measureModelledValue(
   motion: Motion,
@@ -62,9 +76,11 @@ function measureModelledValue(
   const floor = modelBounds(scene, product.model).min[axis];
   const transform = modelTransform(product.model);
   const size = new Vector3();
-  let widest = { area: 0, top: -Infinity };
+  let widest = { area: -1, top: -Infinity };
   for (const root of partNodes(product, index, [motion.referencePart ?? ''])) {
-    for (const mesh of collectMeshes(root, boundaries)) {
+    const candidates =
+      motion.referenceMode === 'object' ? ownMeshes(root) : collectMeshes(root, boundaries);
+    for (const mesh of candidates) {
       const box = meshBounds(mesh, scene, transform);
       box.getSize(size);
       const area = size[a] * size[b];
@@ -130,8 +146,10 @@ export function motionEnvelope(box: Box3, motions: readonly ResolvedMotion[], mo
     const factor = Math.max(0, ...nodes.map((n) => n.factor));
     const reach = (value: number) =>
       (value - modelledValue) * motion.metresPerUnit * modelScale * factor;
+    // Only the upward reach grows the box: lowered parts sink into the parts below them
+    // and never go under the floor, so growing it downward would frame empty space below
+    // the floor and tilt the camera up at the desk from underneath.
     envelope.max[motion.axis] += Math.max(0, reach(motion.max));
-    envelope.min[motion.axis] += Math.min(0, reach(motion.min));
   }
   return envelope;
 }
@@ -211,10 +229,11 @@ export function useMotions(
     const { targets, setCurrent } = useMotionStore.getState();
     const step = Math.min(delta, MAX_FRAME_SECONDS);
     let changed = false;
-    for (const { motion, speed, modelledValue } of motions) {
-      const value = current.current.get(motion.id) ?? modelledValue;
-      const target = targets[motion.id] ?? value;
-      if (value === target) continue;
+    for (const { motion, speed } of motions) {
+      // Not started yet: the first frame can run before the effect above has set it.
+      const value = current.current.get(motion.id);
+      const target = targets[motion.id];
+      if (value === undefined || target === undefined || value === target) continue;
       const next =
         Math.abs(target - value) <= speed * step
           ? target

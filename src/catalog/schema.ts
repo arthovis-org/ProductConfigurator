@@ -131,6 +131,11 @@ export const motionSchema = z
      */
     modelledValue: z.number().optional(),
     referencePart: identifier.optional(),
+    /**
+     * How to read the height from the reference part: `widest` takes the top of its widest
+     * mesh (nested parts skipped); `object` the top of the reference objects' own geometry.
+     */
+    referenceMode: z.enum(['widest', 'object']).default('widest'),
     axis: z.enum(['x', 'y', 'z']).default('y'),
     /** Units per second; defaults to crossing the whole range in three seconds. */
     speed: z.number().positive().optional(),

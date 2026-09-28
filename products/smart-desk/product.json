@@ -4,9 +4,20 @@
   "currency": "EUR",
   "basePrice": 749,
   "options": {
-    "MonitorLeft": { "label": "Left monitor", "price": 229 },
-    "MonitorRight": { "label": "Right monitor", "price": 229 },
+    "SideMonitors": {
+      "label": "Side monitors",
+      "description": "A pair of monitors on hinged arms, left and right.",
+      "price": 399,
+      "includes": ["MonitorLeft", "MonitorRight"]
+    },
     "MonitorBottom": { "label": "Desk monitor", "price": 299 }
+  },
+  "height": {
+    "label": "Desk height",
+    "reference": "DeskBase",
+    "min": 70,
+    "max": 113,
+    "presets": { "Sit": 72, "Stand": 110 }
   },
   "materials": {
     "DeskMat": {
