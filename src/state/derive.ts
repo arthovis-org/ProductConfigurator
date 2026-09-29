@@ -18,6 +18,8 @@ export interface PriceLine {
 export interface ResolvedConfiguration {
   /** Node names that must be hidden. Anything not listed stays visible. */
   hiddenNodes: ReadonlySet<string>;
+  /** Node names whose own geometry is hidden while their children stay (swapped parts). */
+  hiddenOwnNodes: ReadonlySet<string>;
   /** Finish per Blender material name; materials not listed stay as modelled. */
   materialAssignments: ReadonlyMap<string, MaterialPreset>;
   priceLines: readonly PriceLine[];
@@ -61,6 +63,7 @@ export function resolveConfiguration(
     partIds.flatMap((partId) => nodesOf.get(partId) ?? []);
 
   const hiddenNodes = new Set<string>();
+  const hiddenOwnNodes = new Set<string>();
   const materialAssignments = new Map<string, MaterialPreset>();
   const priceLines: PriceLine[] = [];
 
@@ -84,6 +87,7 @@ export function resolveConfiguration(
       case 'toggle': {
         const chosen = selectedOption(group, selections);
         if (!chosen.visible) for (const node of nodesForParts([group.part])) hiddenNodes.add(node);
+        for (const node of chosen.visible ? group.whenOff : group.whenOn) hiddenOwnNodes.add(node);
         option = chosen;
         break;
       }
@@ -100,5 +104,5 @@ export function resolveConfiguration(
   }
 
   const totalPrice = priceLines.reduce((sum, line) => sum + line.priceDelta, product.basePrice);
-  return { hiddenNodes, materialAssignments, priceLines, totalPrice };
+  return { hiddenNodes, hiddenOwnNodes, materialAssignments, priceLines, totalPrice };
 }

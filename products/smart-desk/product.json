@@ -8,10 +8,26 @@
       "label": "Side monitors",
       "description": "A pair of monitors on hinged arms, left and right.",
       "price": 399,
-      "includes": ["MonitorLeft", "MonitorRight"]
+      "includes": ["MonitorLeft", "MonitorRight"],
+      "parts": {
+        "on": ["MainBackplatewithSideMonitors", "SideMonitorsBackplate"],
+        "off": ["MainBackplate"]
+      }
     },
-    "MonitorBottom": { "label": "Desk monitor", "price": 299 }
+    "MonitorBottom": {
+      "label": "Desk monitor",
+      "price": 299,
+      "parts": { "on": ["DeskBase_withHinge", "DeskHinge"], "off": ["DeskBase"] }
+    }
   },
+  "decals": [
+    {
+      "image": "images/virtuos_text_alpha.png",
+      "objects": ["MainBackplate", "MainBackplatewithSideMonitors"],
+      "width": 0.3,
+      "side": "back"
+    }
+  ],
   "height": {
     "label": "Desk height",
     "reference": "DeskBase",

@@ -107,6 +107,9 @@ export async function loadCatalog(productsDir: string) {
         gltf: await readGltfJson(join(dir, modelFile)),
         configText: (await exists(configPath)) ? await readFile(configPath, 'utf8') : undefined,
         materialFiles,
+        imageFiles: (await listFiles(join(dir, 'images'))).filter((file) =>
+          IMAGE_EXTENSIONS.includes(extname(file).toLowerCase()),
+        ),
       });
       derived.issues.push(...(await textureWeight(join(dir, 'materials'), materialFiles)));
       products.push(derived.definition);

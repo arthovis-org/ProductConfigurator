@@ -3,10 +3,11 @@ import { Suspense, useEffect, useMemo } from 'react';
 import { Vector3, type Object3D } from 'three';
 import { useProduct, useResolvedConfiguration } from '@/state/configuratorStore';
 import { useModelIssuesStore } from '@/state/modelIssuesStore';
+import { Decals } from './Decals';
 import { MaterialAppearance } from './MaterialAppearance';
 import { useModel } from './models';
 import { motionEnvelope, useMotions } from './motion';
-import { indexNodes, modelBounds } from './nodeUtils';
+import { indexNodes, modelBounds, ownMeshes } from './nodeUtils';
 import { WorkspaceLayer } from './workspace/WorkspaceLayer';
 
 /** Loads the product glTF and applies the resolved configuration to it. */
@@ -43,6 +44,27 @@ export function ProductModel() {
     invalidate();
   }, [partNodes, config.hiddenNodes, invalidate]);
 
+  // Parts modelled in two versions: only the object's own geometry is swapped, so its
+  // children (monitors standing on a desk top) stay. Layers hide a mesh without its children.
+  const swapped = useMemo(
+    () =>
+      product.optionGroups.flatMap((group) =>
+        group.type === 'toggle' ? [...group.whenOn, ...group.whenOff] : [],
+      ),
+    [product],
+  );
+  useEffect(() => {
+    for (const name of swapped) {
+      const node = index.get(name);
+      if (!node) continue;
+      for (const mesh of ownMeshes(node)) {
+        if (config.hiddenOwnNodes.has(name)) mesh.layers.disableAll();
+        else mesh.layers.set(0);
+      }
+    }
+    invalidate();
+  }, [swapped, index, config.hiddenOwnNodes, invalidate]);
+
   // Centre on the footprint and stand on the floor. Measured once from the model as
   // authored (hidden parts included), so neither toggling parts nor raising the desk shifts
   // it under the camera. `useMotions` above restores the authored pose it measures.
@@ -72,6 +94,14 @@ export function ProductModel() {
         index={index}
         hiddenNodes={config.hiddenNodes}
       />
+      <Suspense fallback={null}>
+        <Decals
+          product={product}
+          scene={scene}
+          index={index}
+          hiddenOwnNodes={config.hiddenOwnNodes}
+        />
+      </Suspense>
       {framing && (
         <mesh position={framing.position} visible={false}>
           <boxGeometry args={framing.size} />

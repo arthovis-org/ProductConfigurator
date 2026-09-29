@@ -1,16 +1,16 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { type Box3, Matrix3, Vector3, type Mesh, type Object3D } from 'three';
+import { type Box3, Matrix3, Vector3, type Object3D } from 'three';
 import type { Motion, ProductDefinition } from '@/catalog/schema';
 import { useMotionStore } from '@/state/motionStore';
 import {
   authoredPosition,
   collectMeshes,
-  isMesh,
-  meshBounds,
   matrixRelativeTo,
+  meshBounds,
   modelBounds,
   modelTransform,
+  ownMeshes,
   type PartBoundaries,
 } from './nodeUtils';
 
@@ -51,14 +51,6 @@ const FOOTPRINT_AXES = { x: ['y', 'z'], y: ['x', 'z'], z: ['x', 'y'] } as const;
  * whose meshes are its primitives; those carry no Blender name of their own, unlike child
  * objects parented to it in Blender, which are left out.
  */
-function ownMeshes(node: Object3D): Mesh[] {
-  const meshes = isMesh(node) ? [node] : [];
-  for (const child of node.children) {
-    if (isMesh(child) && child.userData.name === undefined) meshes.push(child);
-  }
-  return meshes;
-}
-
 /**
  * The height the model was exported at, in units above the lowest point of the model (the
  * floor). With a named reference object (`height.reference`), its own top surface; else the

@@ -121,6 +121,39 @@ const configSchema = z.strictObject({
          * ["MonitorLeft", "MonitorRight"]. The key then names a new, combined option.
          */
         includes: z.array(z.string()).optional(),
+        /**
+         * Toggle: objects modelled in both versions, e.g. a back plate with and without the
+         * side monitor mounts. `on` objects show only while the option is on, `off` objects
+         * only while it is off. Only the object's own geometry is swapped; its children stay.
+         */
+        parts: z
+          .strictObject({
+            on: z.array(z.string()).optional(),
+            off: z.array(z.string()).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
+  /**
+   * Images laid on objects, such as a logo: a white-on-black mask from images/, centred on
+   * one side of each object's own geometry.
+   */
+  decals: z
+    .array(
+      z.strictObject({
+        /** Path inside the product folder, e.g. "images/logo.png". White shows, black doesn't. */
+        image: z.string(),
+        /** Blender object names to put it on (each gets a copy; hidden with its object). */
+        objects: z.array(z.string()).min(1),
+        /** Width in metres; the height follows the image. */
+        width: z.number().positive(),
+        /** Side of the object, in the model's directions (front faces +Z). Default back. */
+        side: z.enum(['front', 'back', 'left', 'right', 'top', 'bottom']).optional(),
+        /** Colour of the image (default light grey). */
+        color: z.string().optional(),
+        /** Shift from the centre in metres: [right, up] as seen looking at that side. */
+        offset: z.tuple([z.number(), z.number()]).optional(),
       }),
     )
     .optional(),
@@ -321,6 +354,8 @@ export interface ProductFolder {
   configText: string | undefined;
   /** Image files under `materials/`, relative to it: `Top/walnut.jpg`. */
   materialFiles: string[];
+  /** Image files under `images/`, relative to it: `logo.png`. */
+  imageFiles: string[];
 }
 
 export interface DerivedProduct {
@@ -588,9 +623,20 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
     panelToggles.set(normalize(target), combined);
   }
 
+  /** The Blender name `name` refers to (case and underscores don't matter), or an issue. */
+  const objectNamed = (name: string, where: string) => {
+    const found = nodeNames.find((n) => normalize(n) === normalize(name));
+    if (!found) issues.push(`product.json: ${where} "${name}" matches no object in the model`);
+    return found;
+  };
+
   for (const toggle of panelToggles.values()) {
     const settings = lookup(config.options, toggle.name, usedOptions);
     const id = toId(toggle.name);
+    const swap = (side: 'on' | 'off') =>
+      (settings?.parts?.[side] ?? [])
+        .map((name) => objectNamed(name, `options.${toggle.name}.parts.${side}`))
+        .filter((name): name is string => name !== undefined);
     parts.push({
       id: `toggle-${id}`,
       label: humanize(toggle.name),
@@ -603,6 +649,8 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       label: settings?.label ?? humanize(toggle.name),
       ...(settings?.description && { description: settings.description }),
       part: `toggle-${id}`,
+      whenOn: swap('on'),
+      whenOff: swap('off'),
       defaultOptionId: settings?.default === false ? 'without' : 'with',
       options: [
         { id: 'without', label: 'None', visible: false },
@@ -755,6 +803,33 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
     if (!usedMaterials.has(key))
       issues.push(`product.json: materials.${key} matches no material in the model`);
   }
+  // --- Decals --------------------------------------------------------------------------
+  const decals = (config.decals ?? []).flatMap((decal, i) => {
+    const file = decal.image
+      .replaceAll('\\', '/')
+      .replace(/^\.?\//, '')
+      .replace(/^images\//, '');
+    if (!folder.imageFiles.includes(file)) {
+      issues.push(`product.json: decals[${i}].image "${decal.image}" is not in images/`);
+      return [];
+    }
+    const objects = decal.objects
+      .map((name) => objectNamed(name, `decals[${i}].objects`))
+      .filter((name): name is string => name !== undefined);
+    return objects.length === 0
+      ? []
+      : [
+          {
+            image: asset(`${folder.url}/images/${file}`),
+            objects,
+            width: decal.width,
+            side: decal.side ?? 'back',
+            ...(decal.color && { color: decal.color }),
+            ...(decal.offset && { offset: decal.offset }),
+          },
+        ];
+  });
+
   if (optionGroups.length === 0 && motions.length === 0) {
     issues.push(
       'Nothing to configure yet: name objects Toggle_*, Variant_*_* or Lift*_*, or add materials/<Material>/ images',
@@ -775,6 +850,7 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       motions,
       screens,
       workspaces,
+      decals,
       ...(config.screens?.material && { screenMaterial: config.screens.material }),
       ...(config.screens?.pixelsPerMetre !== undefined && {
         pixelsPerMetre: config.screens.pixelsPerMetre,

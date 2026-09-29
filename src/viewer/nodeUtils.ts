@@ -6,6 +6,20 @@ export function isMesh(object: Object3D): object is Mesh {
 }
 
 /**
+ * A node's own meshes: itself, or the primitives glTF splits a multi-material mesh into
+ * (children without a Blender name). Decals laid on the node are not part of it.
+ */
+export function ownMeshes(node: Object3D): Mesh[] {
+  const meshes = isMesh(node) ? [node] : [];
+  for (const child of node.children) {
+    if (isMesh(child) && child.userData.name === undefined && !child.userData.decal) {
+      meshes.push(child);
+    }
+  }
+  return meshes;
+}
+
+/**
  * Nodes of a loaded scene by their Blender name. three.js may rename nodes (spaces, dots,
  * duplicates) but keeps the original glTF name in `userData.name`, which the catalog uses.
  */

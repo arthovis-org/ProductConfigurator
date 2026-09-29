@@ -8,6 +8,7 @@ products/
   smart-desk/
     model.glb          the Blender export, used exactly as exported (required)
     product.json       name, prices, defaults, height range (optional)
+    images/            logos and other images laid on the model (optional)
     materials/         PBR finish texture sets (optional)
       DeskMat/
         walnut/        walnut_diff_2k.jpg, walnut_nor_gl_2k.jpg, walnut_arm_2k.jpg
@@ -232,6 +233,18 @@ Everything is optional. Keys refer to names from Blender (case and underscores d
   For a variant, `default` names the initial choice and `choices` holds per-choice labels and
   prices. `includes` merges toggles into one option without renaming anything in Blender:
   `"SideMonitors": { "includes": ["MonitorLeft", "MonitorRight"], "price": 399 }`.
+- `options.<Name>.parts`: for objects modelled in two versions on top of each other, e.g. a back
+  plate with and without side monitor mounts:
+  `"parts": { "on": ["MainBackplatewithSideMonitors"], "off": ["MainBackplate"] }`. `on`
+  objects show only while the option is on, `off` objects only while it is off. Only the
+  object's own geometry is swapped; objects parented to it stay (a desk top with a hinge can
+  be swapped without hiding the monitors on it).
+- `decals`: images laid on objects, such as a logo. The image lives in `images/` and is a mask:
+  white shows in `color` (default light grey), black shows the object.
+  `{ "image": "images/logo.png", "objects": ["MainBackplate"], "width": 0.3, "side": "back" }`
+  centres it on that side of each object's own geometry (`front` faces the viewer; also
+  `left`, `right`, `top`, `bottom`), `width` in metres; `offset: [right, up]` in metres moves
+  it from the centre. It moves and hides with its object.
 - `materials.<Material>.choices`: settings for image choices (price, label, roughness,
   metalness), or colour-only choices with `color`. `"original": false` hides "As modelled";
   a string renames it.

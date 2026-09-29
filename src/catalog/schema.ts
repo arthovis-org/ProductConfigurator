@@ -92,7 +92,24 @@ export const materialGroupSchema = groupBase.extend({
 export const toggleGroupSchema = groupBase.extend({
   type: z.literal('toggle'),
   part: identifier,
+  /** Objects whose own geometry shows only while the option is on (children unaffected). */
+  whenOn: z.array(z.string()).default([]),
+  /** Objects whose own geometry shows only while the option is off. */
+  whenOff: z.array(z.string()).default([]),
   options: z.array(optionBase.extend({ visible: z.boolean() })).length(2),
+});
+
+/** An image, such as a logo, laid on one side of objects: a white-on-black mask. */
+export const decalSchema = z.strictObject({
+  image: z.string().min(1),
+  /** Blender object names; each gets a copy that moves and hides with it. */
+  objects: z.array(z.string().min(1)).min(1),
+  /** Width in metres; the height follows the image. */
+  width: z.number().positive(),
+  side: z.enum(['front', 'back', 'left', 'right', 'top', 'bottom']).default('back'),
+  color: z.string().default('#d8d8d8'),
+  /** Shift from the centre in metres: right and up as seen looking at that side. */
+  offset: z.tuple([z.number(), z.number()]).default([0, 0]),
 });
 
 export const optionGroupSchema = z.discriminatedUnion('type', [
@@ -209,6 +226,7 @@ export const productDefinitionSchema = z
     motions: z.array(motionSchema).default([]),
     screens: z.array(screenSchema).default([]),
     workspaces: z.array(workspaceSchema).default([]),
+    decals: z.array(decalSchema).default([]),
     /** Blender material of the display surfaces. */
     screenMaterial: z.string().min(1).default('Screen'),
     /**
@@ -320,6 +338,7 @@ export type OptionGroup = z.output<typeof optionGroupSchema>;
 export type VariantGroup = z.output<typeof variantGroupSchema>;
 export type MaterialGroup = z.output<typeof materialGroupSchema>;
 export type ToggleGroup = z.output<typeof toggleGroupSchema>;
+export type Decal = z.output<typeof decalSchema>;
 export type Option = OptionGroup['options'][number];
 export type Motion = z.output<typeof motionSchema>;
 export type Screen = z.output<typeof screenSchema>;
