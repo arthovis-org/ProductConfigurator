@@ -7,8 +7,13 @@
     radial-gradient(ellipse at 50% 40%, var(--viewer-glow) 0%, transparent 65%), var(--viewer-bg);
 }
 
+.orbitSurface {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
 .viewer canvas {
   display: block;
-  touch-action: none;
   outline: none;
 }

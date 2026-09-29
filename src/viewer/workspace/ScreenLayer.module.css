@@ -1,8 +1,9 @@
-/* A 3D layer over the canvas; the viewer writes the perspective and transforms. */
+/* A 3D layer under the canvas, seen through the screens; the viewer writes the perspective
+   and transforms. */
 .layer {
   position: absolute;
   inset: 0;
-  z-index: 100;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }

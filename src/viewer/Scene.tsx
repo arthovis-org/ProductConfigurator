@@ -1,6 +1,6 @@
 import { Bounds, ContactShadows, OrbitControls, useBounds } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
 import { StudioEnvironment } from './StudioEnvironment';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
@@ -33,11 +33,22 @@ function RefitOnResize() {
   return null;
 }
 
-/** Studio-style viewer: soft environment light, contact shadow, damped orbit controls. */
+/**
+ * Studio-style viewer: soft environment light, contact shadow, damped orbit controls.
+ *
+ * Layers, bottom to top: the surface the orbit controls listen on, the workspace sites, the
+ * transparent canvas (which lets the pointer through and shows the sites through holes in the
+ * screens, so the model hides them where it is in front), then the workspace controls.
+ */
 export function Scene() {
+  const [orbitSurface, setOrbitSurface] = useState<HTMLDivElement | null>(null);
   return (
     <div className={styles.viewer}>
+      <div ref={setOrbitSurface} className={styles.orbitSurface} />
+      <ScreenLayer />
       <Canvas
+        // Above the sites, but the pointer goes through to them and to the orbit surface.
+        style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}
         // Render only when something changes (camera, selection); the scene is static otherwise.
         frameloop="demand"
         dpr={[1, 2]}
@@ -65,6 +76,7 @@ export function Scene() {
         />
         <OrbitControls
           makeDefault
+          {...(orbitSurface && { domElement: orbitSurface })}
           enablePan={false}
           enableDamping
           dampingFactor={0.08}
@@ -76,7 +88,6 @@ export function Scene() {
           // which includes the full height range of a motorised desk.
         />
       </Canvas>
-      <ScreenLayer />
       <WorkspaceHud />
     </div>
   );

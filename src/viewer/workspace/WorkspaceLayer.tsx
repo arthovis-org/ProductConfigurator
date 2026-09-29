@@ -1,8 +1,12 @@
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import {
+  MeshBasicMaterial,
+  NoBlending,
   Quaternion,
   Raycaster,
+  type Material,
+  type Mesh,
   Vector2,
   Vector3,
   type Object3D,
@@ -130,6 +134,34 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
       cssProjection.invalidate = null;
     };
   }, [invalidate]);
+  // While the sites are on, each screen draws as a transparent hole that still hides what is
+  // behind it: the sites under the canvas show through it, and whatever is in front of the
+  // screen (another monitor, its own back, the desk) covers them.
+  useEffect(() => {
+    if (!active) return;
+    const hole = new MeshBasicMaterial({
+      color: 0x000000,
+      opacity: 0,
+      transparent: true,
+      blending: NoBlending,
+    });
+    const originals: [Mesh, Material | Material[]][] = [];
+    for (const { frame } of screens) {
+      const { mesh } = frame;
+      const original = mesh.material;
+      originals.push([mesh, original]);
+      mesh.material = Array.isArray(original)
+        ? original.map((m) => (m.name === product.screenMaterial ? hole : m))
+        : hole;
+    }
+    invalidate();
+    return () => {
+      for (const [mesh, original] of originals) mesh.material = original;
+      hole.dispose();
+      invalidate();
+    };
+  }, [active, screens, product.screenMaterial, invalidate]);
+
   // When the scene is drawn, after everything moved this frame (camera, desk height), so the
   // sites never lag behind. Other renders of the scene (contact shadows) use other cameras.
   const root = useThree((s) => s.scene);
@@ -199,5 +231,11 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
   }, [dragging, updateDrag, endDrag]);
 
   if (screens.length === 0) return null;
-  return <WorkspaceCamera screens={cameraTargets} primaryId={primary?.screen.id} />;
+  return (
+    <WorkspaceCamera
+      screens={cameraTargets}
+      primaryId={primary?.screen.id}
+      tilt={product.screenTilt}
+    />
+  );
 }

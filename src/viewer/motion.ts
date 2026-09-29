@@ -224,6 +224,8 @@ export function useMotions(
     [invalidate],
   );
 
+  // Runs before the default frame callbacks, so a seated workspace camera follows the desk in
+  // the same frame.
   useFrame((_, delta) => {
     if (motions.length === 0) return;
     const { targets, setCurrent } = useMotionStore.getState();
@@ -244,7 +246,7 @@ export function useMotions(
     }
     // Posing invalidates, which keeps frames coming until every motion has arrived.
     if (changed) applyPose();
-  });
+  }, -1);
 
   return motions;
 }

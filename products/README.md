@@ -169,6 +169,9 @@ toggle; windows on a switched-off screen move to the main screen until it's back
   `screens.pixelsPerMetre` (default 1200) sets how many CSS pixels fit in a metre of screen. It is
   the same on every screen, like a real desk, so a narrow portrait screen shows a site's narrow
   layout.
+- `screens.tilt` (degrees, default 15) is how far the seated view looks down when a screen lies on
+  the desk, so it can be read; `0` looks straight at the main screen. The seated camera follows
+  the desk as its height changes.
 
 ### Which sites can be shown
 

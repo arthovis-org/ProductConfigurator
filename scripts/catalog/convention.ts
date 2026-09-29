@@ -189,6 +189,11 @@ const configSchema = z.strictObject({
       material: z.string().optional(),
       /** CSS pixels per metre of screen, the same on every screen (default 1200). */
       pixelsPerMetre: z.number().positive().optional(),
+      /**
+       * Degrees the seated view looks down when a screen lies on the desk (default 15; 0 looks
+       * straight at the main screen).
+       */
+      tilt: z.number().min(0).max(60).optional(),
       /** Display names, keyed by the monitor object name from Blender. */
       labels: z.record(z.string(), z.string()).optional(),
     })
@@ -774,6 +779,7 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       ...(config.screens?.pixelsPerMetre !== undefined && {
         pixelsPerMetre: config.screens.pixelsPerMetre,
       }),
+      ...(config.screens?.tilt !== undefined && { screenTilt: config.screens.tilt }),
     },
     issues,
   };

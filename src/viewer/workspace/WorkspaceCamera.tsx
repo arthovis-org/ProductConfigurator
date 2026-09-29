@@ -14,6 +14,8 @@ interface WorkspaceCameraProps {
   screens: readonly CameraTarget[];
   /** Screen the overview looks straight at. */
   primaryId: string | undefined;
+  /** Degrees the overview looks down when a screen lies on the desk. */
+  tilt: number;
 }
 
 /** The parts of drei's OrbitControls this component adjusts. */
@@ -37,8 +39,6 @@ const MOVE_SECONDS = { min: 0.55, max: 0.9 };
 /** Space around the screens; small, so they fill the view. */
 const MARGIN = 1.03;
 const WORLD_UP = new Vector3(0, 1, 0);
-/** Most the overview looks down, so a screen lying on the desk can be read. */
-const MAX_TILT = MathUtils.degToRad(30);
 
 /** Corners of a screen's display surface in world space. */
 function worldCorners({ frame }: CameraTarget): Vector3[] {
@@ -61,6 +61,12 @@ function worldCorners({ frame }: CameraTarget): Vector3[] {
       .addScaledVector(up, b)
       .applyMatrix4(frame.mesh.matrixWorld),
   );
+}
+
+/** Centre of a screen's display surface in world space. */
+function worldCentre({ frame }: CameraTarget): Vector3 {
+  frame.mesh.updateWorldMatrix(true, false);
+  return frame.position.clone().applyMatrix4(frame.mesh.matrixWorld);
 }
 
 /** Direction a screen's display faces, in world space. */
@@ -181,7 +187,7 @@ const target = new Vector3();
  * focused screen), and back to where the visitor was when they get up or close the
  * workspace. Orbiting is off while seated, so pointer input goes to the websites.
  */
-export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
+export function WorkspaceCamera({ screens, primaryId, tilt }: WorkspaceCameraProps) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const controls = useThree((s) => s.controls) as unknown as Controls | null;
   const size = useThree((s) => s.size);
@@ -193,6 +199,8 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
 
   const saved = useRef<(Pose & { limits: Partial<Controls> }) | null>(null);
   const move = useRef<Move | null>(null);
+  /** Where the screen the camera faces was last frame, to follow it up and down. */
+  const anchor = useRef<Vector3 | null>(null);
 
   const current = (): Pose => ({
     position: camera.position.clone(),
@@ -230,17 +238,27 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
     if (!facing) return;
     let back = worldFront(facing);
     if (!focused) {
-      // Look down a little when a screen lies on the desk: halfway between the two, at most
-      // MAX_TILT, keeps the upright screens straight enough and the flat one readable.
+      // Look down a little when a screen lies on the desk, so it can be read too.
       const flat = screens.find((s) => Math.abs(worldFront(s).y) >= 0.7);
-      if (flat) back = tilted(back, Math.min(MAX_TILT, back.angleTo(worldFront(flat)) / 2));
+      if (flat) back = tilted(back, MathUtils.degToRad(tilt));
     }
     const corners = (focused ? [focused] : screens).flatMap(worldCorners);
     const inset = Math.min(0.3, hudInset / Math.max(1, size.height));
     move.current = planMove(current(), fitPose(corners, back, camera, inset));
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seated, focus, screens, primaryId, size.width, size.height, hudInset, camera, invalidate]);
+  }, [
+    seated,
+    focus,
+    screens,
+    primaryId,
+    tilt,
+    size.width,
+    size.height,
+    hudInset,
+    camera,
+    invalidate,
+  ]);
 
   // Leaving: fly back, then hand the camera back to the orbit controls.
   useEffect(() => {
@@ -259,6 +277,30 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
   // desk, while the distance eases from one pose to the other.
   useFrame((_, delta) => {
     const m = move.current;
+
+    // Seated, the camera rises and sinks with the desk: it moves by as much as the screen it
+    // faces (motions run before this, so it happens in the same frame).
+    const followed = screens.find((s) => s.id === (focus ?? primaryId)) ?? screens[0];
+    if (seated && followed) {
+      const now = worldCentre(followed);
+      const shift = anchor.current ? now.clone().sub(anchor.current) : null;
+      anchor.current = now;
+      if (shift && shift.lengthSq() > 1e-12) {
+        if (m) {
+          for (const pose of [m.from, m.to]) {
+            pose.position.add(shift);
+            pose.target.add(shift);
+          }
+        } else if (controls) {
+          camera.position.add(shift);
+          controls.target.add(shift);
+          camera.lookAt(controls.target);
+        }
+      }
+    } else {
+      anchor.current = null;
+    }
+
     if (!m) return;
     // After a still period the first delta spans the whole pause; start the clock now instead.
     if (m.started) m.t = Math.min(1, m.t + Math.min(delta, 0.05) / m.seconds);
