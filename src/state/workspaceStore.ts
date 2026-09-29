@@ -35,6 +35,32 @@ export interface WindowDrag {
   over: DropTarget | null;
 }
 
+export interface ScreenSizes {
+  /** The windows the sizes were set for, in tiling order. */
+  windows: readonly string[];
+  weights: readonly number[];
+}
+
+/**
+ * Flex weights for the windows on a screen: the visitor's, if they were set for exactly these
+ * windows, else equal. A window's size means nothing on another screen or next to other
+ * windows, so a spec change that moves windows gives an even split, and switching back brings
+ * the visitor's sizes back. Scaled to add up to the window count: flex fills a screen only
+ * when the weights add up to at least 1.
+ */
+export function screenWeights(
+  sizes: WorkspaceState['sizes'],
+  screenId: string,
+  windows: readonly string[],
+): number[] {
+  const stored = sizes[screenId];
+  const same =
+    stored?.windows.length === windows.length && stored.windows.every((w, i) => w === windows[i]);
+  const weights = same ? [...stored.weights] : windows.map(() => 1);
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  return total > 0 ? weights.map((w) => (w * windows.length) / total) : windows.map(() => 1);
+}
+
 /** A switched-on screen as the page lays it out: its size in CSS pixels. */
 export interface ScreenSurfaceInfo {
   screen: Screen;
@@ -73,8 +99,11 @@ interface WorkspaceState {
   closed: readonly string[];
   /** Sites the visitor opened on an empty screen. */
   opened: readonly WorkspaceWindow[];
-  /** Share of its screen each window takes, as flex weights (1 when not resized). */
-  sizes: Readonly<Record<string, number>>;
+  /**
+   * How the visitor shared each screen between its windows, by screen id. It applies only
+   * while that screen shows exactly the same windows (see `screenWeights`).
+   */
+  sizes: Readonly<Record<string, ScreenSizes>>;
   /** Screen the camera zooms to, or null for the overview of all screens. */
   focus: string | null;
   drag: WindowDrag | null;
@@ -98,8 +127,8 @@ interface WorkspaceState {
   resetWindows: () => void;
   moveWindow: (windowId: string, screenId: string) => void;
   closeWindow: (windowId: string) => void;
-  /** Sets the weights of two neighbouring windows, e.g. while their divider is dragged. */
-  resizeWindows: (first: string, second: string, firstWeight: number, secondWeight: number) => void;
+  /** Stores how a screen's windows (ids in tiling order) share it, as one weight each. */
+  resizeWindows: (screenId: string, windows: readonly string[], weights: readonly number[]) => void;
   /** Opens a site on a screen: a closed workspace window by id, or any https link. */
   openWindow: (screenId: string, site: { id?: string; title: string; url: string }) => void;
   setFocus: (screenId: string | null) => void;
@@ -244,10 +273,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       order: state.order.filter((w) => w !== windowId),
     })),
 
-  resizeWindows: (first, second, firstWeight, secondWeight) =>
-    set((state) => ({
-      sizes: { ...state.sizes, [first]: firstWeight, [second]: secondWeight },
-    })),
+  resizeWindows: (screenId, windows, weights) =>
+    set((state) => ({ sizes: { ...state.sizes, [screenId]: { windows, weights } } })),
 
   openWindow: (screenId, site) => {
     const id = site.id ?? `site-${++openedCount}`;

@@ -1,12 +1,13 @@
 import type { KeyboardEvent, PointerEvent } from 'react';
-import { useWorkspaceStore } from '@/state/workspaceStore';
+import { screenWeights, useWorkspaceStore } from '@/state/workspaceStore';
 import styles from './Divider.module.css';
 
 interface DividerProps {
   screenId: string;
-  /** The windows on either side (left and right, or above and below). */
-  first: string;
-  second: string;
+  /** All windows on the screen, in tiling order. */
+  windows: readonly string[];
+  /** Index of the window after the divider; the one before it is `index - 1`. */
+  index: number;
   /** Windows stacked on a portrait screen: the divider is horizontal and moves up and down. */
   stacked: boolean;
 }
@@ -20,20 +21,24 @@ const KEY_STEP = 0.05;
  * The line between two windows on one screen. Dragging it shares the space between them
  * differently; a double click makes them equal again.
  */
-export function Divider({ screenId, first, second, stacked }: DividerProps) {
+export function Divider({ screenId, windows, index, stacked }: DividerProps) {
+  const first = windows[index - 1] ?? '';
+  const second = windows[index] ?? '';
   const resizeWindows = useWorkspaceStore((s) => s.resizeWindows);
 
-  // Both windows' current weights, which the pair keeps in total.
+  // The screen's current weights; the two windows keep their combined share.
   const pair = () => {
-    const { sizes } = useWorkspaceStore.getState();
-    const a = sizes[first] ?? 1;
-    const b = sizes[second] ?? 1;
-    return { a, b, total: a + b };
+    const weights = screenWeights(useWorkspaceStore.getState().sizes, screenId, windows);
+    const a = weights[index - 1] ?? 1;
+    const b = weights[index] ?? 1;
+    return { weights, a, total: a + b };
   };
   const setShare = (share: number) => {
-    const { total } = pair();
+    const { weights, total } = pair();
     const clamped = Math.min(1 - MIN_SHARE, Math.max(MIN_SHARE, share));
-    resizeWindows(first, second, total * clamped, total * (1 - clamped));
+    weights[index - 1] = total * clamped;
+    weights[index] = total * (1 - clamped);
+    resizeWindows(screenId, windows, weights);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
