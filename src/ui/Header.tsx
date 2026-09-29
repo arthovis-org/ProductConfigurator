@@ -65,11 +65,11 @@ export function Header() {
             <option
               key={c.code}
               value={c.code}
-              title={c.label}
+              // Labels stay the same while rates load: a select keeps the width of its longest.
+              title={rates[c.code] === undefined ? `${c.label}: rate unavailable` : c.label}
               disabled={rates[c.code] === undefined}
             >
               {c.code}
-              {rates[c.code] === undefined ? ' (unavailable)' : ''}
             </option>
           ))}
         </select>

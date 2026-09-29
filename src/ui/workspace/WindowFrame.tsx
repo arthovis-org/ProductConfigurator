@@ -74,7 +74,7 @@ export function WindowFrame({ window: win, screenId, screens, grow }: WindowFram
           </select>
           <button
             type="button"
-            className={styles.button}
+            className={`${styles.button} ${styles.focus}`}
             aria-label={focused ? 'Show all screens' : `Zoom to the ${win.title} screen`}
             title={focused ? 'Show all screens' : 'Zoom to this screen'}
             onClick={() => setFocus(focused ? null : screenId)}
@@ -82,7 +82,7 @@ export function WindowFrame({ window: win, screenId, screens, grow }: WindowFram
             {focused ? '⤡' : '⤢'}
           </button>
           <a
-            className={styles.button}
+            className={`${styles.button} ${styles.external}`}
             href={win.url}
             target="_blank"
             rel="noreferrer"

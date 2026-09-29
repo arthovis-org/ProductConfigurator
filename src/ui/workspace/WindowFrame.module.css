@@ -9,6 +9,8 @@
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 18%);
+  /* The title bar adapts to the window's own width (windows can share a screen). */
+  container-type: inline-size;
 }
 
 .titleBar {
@@ -16,6 +18,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   /* Tall on purpose: the overview shows every monitor at once, which shrinks a desktop to a
      third of its size, and the title bar is the drag handle. */
   height: 56px;
@@ -40,12 +43,18 @@
   border-radius: 3px;
 }
 
+/* The title gives way first, so the buttons, above all Close, always fit. */
 .title {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 2ch;
+  overflow: hidden;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .host {
+  flex: 0 1000 auto;
   min-width: 0;
   overflow: hidden;
   color: #70707a;
@@ -117,9 +126,36 @@
   pointer-events: none;
 }
 
-/* Narrow (portrait) windows keep only what fits. */
-@container (max-width: 420px) {
+/* Narrow windows keep what matters most: the title, the screen menu and Close. */
+@container (max-width: 460px) {
   .host {
+    display: none;
+  }
+
+  .titleBar {
+    gap: 8px;
+    padding-left: 12px;
+  }
+
+  .button {
+    width: 38px;
+  }
+
+  .move {
+    max-width: 96px;
+  }
+}
+
+@container (max-width: 360px) {
+  .icon,
+  .external {
+    display: none;
+  }
+}
+
+/* Dragging the title bar still moves the window to another screen. */
+@container (max-width: 270px) {
+  .move {
     display: none;
   }
 }
