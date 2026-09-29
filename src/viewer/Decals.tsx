@@ -1,7 +1,15 @@
 import { useTexture } from '@react-three/drei';
 import { createPortal } from '@react-three/fiber';
 import { Fragment, useMemo } from 'react';
-import { Box3, Matrix4, Quaternion, Vector3, type Object3D } from 'three';
+import {
+  Box3,
+  Matrix4,
+  Quaternion,
+  Raycaster,
+  Vector3,
+  type Intersection,
+  type Object3D,
+} from 'three';
 import type { Decal, ProductDefinition } from '@/catalog/schema';
 import { matrixRelativeTo, ownMeshes } from './nodeUtils';
 
@@ -67,10 +75,25 @@ function place(node: Object3D, scene: Object3D, decal: Decal, aspect: number): P
   if (up.lengthSq() < 0.5) up.set(0, 1, 0).projectOnPlane(normal).normalize();
   const right = new Vector3().crossVectors(up, normal);
 
-  const centre = box.getCenter(new Vector3());
-  centre[axis] = (sign > 0 ? box.max[axis] : box.min[axis]) + sign * LIFT * metre;
+  // Start outside the box at the wanted spot and drop onto the surface below it, so the image
+  // lies on whatever is there (a mount plate or the panel behind it) instead of floating at
+  // the box's furthest point.
   const [dx, dy] = decal.offset;
-  centre.addScaledVector(right, dx * metre).addScaledVector(up, dy * metre);
+  const outside = box.getCenter(new Vector3());
+  outside[axis] = (sign > 0 ? box.max[axis] : box.min[axis]) + sign * 0.01 * metre;
+  outside.addScaledVector(right, dx * metre).addScaledVector(up, dy * metre);
+  node.updateWorldMatrix(true, true);
+  const raycaster = new Raycaster(
+    outside.clone().applyMatrix4(node.matrixWorld),
+    normal.clone().negate().transformDirection(node.matrixWorld),
+  );
+  // Tested mesh by mesh: a swapped-out part is on no render layer, which `intersectObjects`
+  // would skip, and it still needs its decal for when it shows.
+  const hits: Intersection[] = [];
+  for (const mesh of ownMeshes(node)) mesh.raycast(raycaster, hits);
+  const hit = hits.sort((a, b) => a.distance - b.distance)[0];
+  if (!hit) return null;
+  const centre = node.worldToLocal(hit.point.clone()).addScaledVector(normal, LIFT * metre);
 
   return {
     position: centre,

@@ -24,8 +24,9 @@
     {
       "image": "images/virtuos_text_alpha.png",
       "objects": ["MainBackplate", "MainBackplatewithSideMonitors"],
-      "width": 0.3,
-      "side": "back"
+      "width": 0.12,
+      "side": "back",
+      "offset": [0, 0.1]
     }
   ],
   "height": {
