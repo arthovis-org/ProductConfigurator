@@ -12,8 +12,11 @@
  *                                    using the Blender material <Material>; a single image
  *                                    materials/<Material>/<choice>.jpg works too
  *
+ * Screens are the meshes using the Blender material `Screen`; `product.json` workspaces put
+ * live websites on them for the workspace demo.
+ *
  * `product.json` (optional) adds what names cannot carry: product name, prices, labels,
- * defaults, extra colour choices and the height range. See products/README.md.
+ * defaults, extra colour choices, the height range and workspaces. See products/README.md.
  */
 import { z } from 'zod';
 import type {
@@ -179,6 +182,37 @@ const configSchema = z.strictObject({
       presets: z.record(z.string(), z.number()).optional(),
     })
     .optional(),
+  /** Screens are found by material; these settings adjust how they are used. */
+  screens: z
+    .strictObject({
+      /** Blender material of the display surfaces (default "Screen"). */
+      material: z.string().optional(),
+      /** CSS pixels per metre of screen, the same on every screen (default 1200). */
+      pixelsPerMetre: z.number().positive().optional(),
+      /** Display names, keyed by the monitor object name from Blender. */
+      labels: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
+  /** Live websites on the screens, keyed by workspace id: "office": { windows: [...] }. */
+  workspaces: z
+    .record(
+      z.string(),
+      z.strictObject({
+        label: z.string().optional(),
+        description: z.string().optional(),
+        windows: z
+          .array(
+            z.strictObject({
+              title: z.string().min(1),
+              url: z.url({ protocol: /^https$/, error: 'expected an https:// URL' }),
+              /** Monitor object name from Blender, e.g. "MainMonitor" or "MonitorLeft". */
+              screen: z.string().min(1),
+            }),
+          )
+          .min(1, 'a workspace needs at least one window'),
+      }),
+    )
+    .optional(),
 });
 
 type ProductConfig = z.output<typeof configSchema>;
@@ -239,6 +273,22 @@ export function parseTags(name: string): NodeTags {
     }
   }
   return tags;
+}
+
+/**
+ * The object name without its configurator tags, for display and matching:
+ * `Lift100_Toggle_MonitorLeft` -> `MonitorLeft`.
+ */
+export function untagged(name: string): string {
+  const tokens = name.split('_');
+  let i = 0;
+  while (i < tokens.length) {
+    const token = tokens[i] ?? '';
+    if (/^lift\d+$/i.test(token) || /^toggle$/i.test(token)) i += 1;
+    else if (/^variant$/i.test(token) && tokens.length - i > 2) i += 2;
+    else break;
+  }
+  return tokens.slice(i).join('_') || name;
 }
 
 /** Finds a config entry by name, ignoring case and separators; remembers what was used. */
@@ -624,6 +674,72 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
     );
   }
 
+  // --- Screens and workspaces --------------------------------------------------------
+  const screenMaterial = config.screens?.material ?? 'Screen';
+  const screenMaterialIndex = (folder.gltf.materials ?? []).findIndex(
+    (m) => m.name === screenMaterial,
+  );
+  const screens: { id: string; node: string; label: string }[] = [];
+  for (const node of folder.gltf.nodes ?? []) {
+    const primitives =
+      node.mesh === undefined ? [] : (folder.gltf.meshes?.[node.mesh]?.primitives ?? []);
+    if (!node.name || !primitives.some((p) => p.material === screenMaterialIndex)) continue;
+    const base = untagged(node.name);
+    const usedLabel = new Set<string>();
+    let id = toId(base);
+    while (screens.some((screen) => screen.id === id)) id += '-2';
+    screens.push({
+      id,
+      node: node.name,
+      label:
+        lookup(config.screens?.labels, base, usedLabel) ??
+        lookup(config.screens?.labels, node.name, usedLabel) ??
+        humanize(base),
+    });
+  }
+  if (config.screens?.material && screens.length === 0) {
+    issues.push(`product.json: no mesh uses the screen material "${screenMaterial}"`);
+  }
+  const findScreen = (name: string) =>
+    screens.find((screen) => normalize(screen.node) === normalize(name)) ??
+    screens.find((screen) => normalize(untagged(screen.node)) === normalize(name));
+
+  const workspaces: {
+    id: string;
+    label: string;
+    description?: string;
+    windows: { id: string; title: string; url: string; screen: string }[];
+  }[] = [];
+  for (const [key, workspace] of Object.entries(config.workspaces ?? {})) {
+    if (screens.length === 0) {
+      issues.push(
+        `product.json: workspaces.${key} needs screens, but no mesh uses the material "${screenMaterial}"`,
+      );
+      break;
+    }
+    const windows: (typeof workspaces)[number]['windows'] = [];
+    for (const window of workspace.windows) {
+      const screen = findScreen(window.screen);
+      if (!screen) {
+        issues.push(
+          `product.json: workspaces.${key}: "${window.title}" is on screen "${window.screen}", which is not a screen (${screens.map((sc) => untagged(sc.node)).join(', ')})`,
+        );
+        continue;
+      }
+      let id = toId(window.title);
+      while (windows.some((w) => w.id === id)) id += '-2';
+      windows.push({ id, title: window.title, url: window.url, screen: screen.id });
+    }
+    if (windows.length > 0) {
+      workspaces.push({
+        id: toId(key),
+        label: workspace.label ?? humanize(key),
+        ...(workspace.description && { description: workspace.description }),
+        windows,
+      });
+    }
+  }
+
   for (const key of Object.keys(config.options ?? {})) {
     if (!usedOptions.has(key))
       issues.push(
@@ -652,6 +768,12 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       parts,
       optionGroups,
       motions,
+      screens,
+      workspaces,
+      ...(config.screens?.material && { screenMaterial: config.screens.material }),
+      ...(config.screens?.pixelsPerMetre !== undefined && {
+        pixelsPerMetre: config.screens.pixelsPerMetre,
+      }),
     },
     issues,
   };

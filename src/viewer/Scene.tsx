@@ -4,6 +4,8 @@ import { Suspense } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
 import { StudioEnvironment } from './StudioEnvironment';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
+import { useWorkspaceStore } from '@/state/workspaceStore';
+import { WorkspaceHud } from '@/ui/workspace/WorkspaceHud';
 import { preloadCurrentProduct } from './models';
 import { ProductModel } from './ProductModel';
 import styles from './Scene.module.css';
@@ -13,6 +15,8 @@ preloadCurrentProduct();
 
 /** Studio-style viewer: soft environment light, contact shadow, damped orbit controls. */
 export function Scene() {
+  // Workspace mode owns the camera; automatic refitting on resize would pull it away.
+  const cameraFree = useWorkspaceStore((s) => s.cameraFree);
   return (
     <div className={styles.viewer}>
       <Canvas
@@ -24,7 +28,7 @@ export function Scene() {
       >
         <ViewerErrorBoundary>
           <Suspense fallback={<LoadingIndicator />}>
-            <Bounds fit clip observe margin={1.25}>
+            <Bounds fit clip observe={cameraFree} margin={1.25}>
               <ProductModel />
             </Bounds>
           </Suspense>
@@ -53,6 +57,7 @@ export function Scene() {
           // which includes the full height range of a motorised desk.
         />
       </Canvas>
+      <WorkspaceHud />
     </div>
   );
 }

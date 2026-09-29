@@ -1,0 +1,53 @@
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.description,
+.tip {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.button {
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    background-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.button:hover {
+  background: var(--surface-hover);
+}
+
+.button:active {
+  transform: scale(0.98);
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.primary:hover {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.wide {
+  width: 100%;
+  padding: 0.75rem 1rem;
+}

@@ -128,6 +128,57 @@ to judge scale; what you see there with 1 UV unit ≈ 1 m is what `repeat: 1` sh
 - Only the selected choice's maps are downloaded, but every swatch button shows an image: add a
   small `swatch.jpg` (about 128 px) per choice, otherwise the full colour map is used.
 
+## Screens and workspaces
+
+A workspace puts **live websites on the product's monitors**, so visitors can feel what the extra
+screens are for: they press "Try the workspace", the camera moves to a seated view, and they can
+use the sites, drag a window by its title bar onto another monitor, or zoom to one screen (⤢).
+
+**Screens** are found automatically: every object whose mesh uses the Blender material
+**`Screen`** is one (the display surface, not the bezel). Nothing else is needed in Blender; the
+size, the facing side and which edge is the top are worked out from the geometry, so portrait and
+reclined screens work too. Screens follow the height control and disappear with their monitor's
+toggle; windows on a switched-off screen move to the main screen until it's back.
+
+**Workspaces** are listed in `product.json`, keyed by id:
+
+```json
+"screens": {
+  "labels": { "MainMonitor": "Main", "MonitorLeft": "Left" }
+},
+"workspaces": {
+  "office": {
+    "label": "Office",
+    "description": "Calendar, research, notes and a whiteboard.",
+    "windows": [
+      { "title": "Calendar", "url": "https://calendar.google.com/calendar/embed?src=…&mode=WEEK", "screen": "MainMonitor" },
+      { "title": "Wikipedia", "url": "https://en.wikipedia.org/wiki/Multi-monitor", "screen": "MonitorLeft" }
+    ]
+  }
+}
+```
+
+- `screen` is the monitor's object name from Blender; tags can be left out (`MonitorLeft` finds
+  `Toggle_MonitorLeft`). Several windows on one screen sit side by side, or stacked on a portrait
+  screen.
+- `screens.labels` names the screens in the UI; `screens.material` changes the material name;
+  `screens.pixelsPerMetre` (default 1200) sets how many CSS pixels fit in a metre of screen. It is
+  the same on every screen, like a real desk, so a narrow portrait screen shows a site's narrow
+  layout.
+
+### Which sites can be shown
+
+Sites decide themselves whether other pages may show them. These work (checked when this was
+written):
+
+| Works                                                                                                                                                                                                                                                                                                                     | Doesn't (refuses to be embedded)                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Google Calendar **embed** links (Settings → Integrate calendar), Wikipedia, StackEdit, Excalidraw, tldraw, draw.io (`embed.diagrams.net`), YouTube **embed** links (`youtube-nocookie.com/embed/…`), Jitsi Meet, OpenStreetMap embed, Desmos, Photopea, Spotify embed, Google Docs/Sheets/Slides **published to the web** | Gmail, Outlook, Notion, Office 365, BBC, Hacker News, CodePen, most banking and social sites |
+
+For a real spreadsheet, use Google Sheets → File → Share → **Publish to web** → _Embed_ and paste
+the link. A site that stays blank has refused; every window has an **Open in new tab** button
+(↗) for that case. Only `https://` links are accepted.
+
 ## product.json
 
 Everything is optional. Keys refer to names from Blender (case and underscores don't matter).
@@ -184,6 +235,7 @@ Everything is optional. Keys refer to names from Blender (case and underscores d
   under the `Lift100` objects is used. `modelled` sets the exported height instead of
   measuring it; `speed` is units per second.
 - `order`: position in the product switcher; the lowest is the default product.
+- `screens`, `workspaces`: see [Screens and workspaces](#screens-and-workspaces).
 
 ## Keeping models outside the repository
 

@@ -7,6 +7,7 @@ import { MaterialAppearance } from './MaterialAppearance';
 import { useModel } from './models';
 import { motionEnvelope, useMotions } from './motion';
 import { indexNodes, modelBounds } from './nodeUtils';
+import { WorkspaceLayer } from './workspace/WorkspaceLayer';
 
 /** Loads the product glTF and applies the resolved configuration to it. */
 export function ProductModel() {
@@ -65,6 +66,12 @@ export function ProductModel() {
 
   return (
     <group position={offset}>
+      <WorkspaceLayer
+        product={product}
+        scene={scene}
+        index={index}
+        hiddenNodes={config.hiddenNodes}
+      />
       {framing && (
         <mesh position={framing.position} visible={false}>
           <boxGeometry args={framing.size} />

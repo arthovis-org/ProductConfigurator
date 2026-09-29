@@ -54,6 +54,21 @@ to the clone, so meshes keep sharing materials. `motion.ts` animates the height:
 object moves by its factor of the change, parented objects only by the difference to their
 parent, and the camera is framed on the full range up front so it never refits mid-motion.
 
+**Workspaces (`src/viewer/workspace`, `src/ui/workspace`)**
+Live websites on the product's screens. The catalog lists screens (meshes using the `Screen`
+material) and workspaces (windows with a URL and a screen). `screenFrame.ts` fits each display
+surface: the plane from a least-squares fit of positions against UVs, the facing side from the
+normals, and the top edge from the scene's up direction (or "away from the viewer" for a screen
+lying almost flat), because UV layouts are often rotated. `ScreenSurface` portals a drei
+`<Html transform>` into the screen mesh, so the DOM rides with the height motion and hides with
+the monitor, sized at a fixed pixel density so text is the same physical size on every screen.
+`WorkspaceCamera` flies to a seated view (or one focused screen) and back, with the orbit
+controls disabled meanwhile; `Scene` pauses `Bounds` refitting while it owns the camera. Window
+drags start on a title bar and are followed on the whole window; the screen under the pointer
+is found by raycasting the screen meshes. State lives in `src/state/workspaceStore.ts`, apart
+from the configuration (never priced or shared), and nothing loads until a visitor enters
+workspace mode.
+
 **UI (`src/ui`)**
 `ConfiguratorPanel` shows motions first, then maps option groups to `OptionGroupControl`:
 material -> `MaterialSwatches`, variant -> `SegmentedControl`, toggle -> `Switch`. Controls are

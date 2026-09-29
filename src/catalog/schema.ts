@@ -171,6 +171,30 @@ export const motionSchema = z
     }
   });
 
+/** A display surface: the mesh(es) of a monitor object using the screen material. */
+export const screenSchema = z.object({
+  id: identifier,
+  /** Blender object name of the monitor. */
+  node: z.string().min(1),
+  label: z.string().min(1),
+});
+
+export const workspaceWindowSchema = z.object({
+  id: identifier,
+  title: z.string().min(1),
+  url: z.url({ protocol: /^https$/ }),
+  /** Screen id the window opens on. */
+  screen: identifier,
+});
+
+/** A set of live websites placed on the screens, for the workspace demo. */
+export const workspaceSchema = z.object({
+  id: identifier,
+  label: z.string().min(1),
+  description: z.string().optional(),
+  windows: z.array(workspaceWindowSchema).min(1),
+});
+
 export const productDefinitionSchema = z
   .object({
     id: identifier,
@@ -183,6 +207,15 @@ export const productDefinitionSchema = z
     parts: z.array(partDefinitionSchema),
     optionGroups: z.array(optionGroupSchema),
     motions: z.array(motionSchema).default([]),
+    screens: z.array(screenSchema).default([]),
+    workspaces: z.array(workspaceSchema).default([]),
+    /** Blender material of the display surfaces. */
+    screenMaterial: z.string().min(1).default('Screen'),
+    /**
+     * CSS pixels per metre of screen in workspaces, the same on every screen. 1200 makes a
+     * 28 cm portrait screen about 330 px wide: the narrowest layout most sites support.
+     */
+    pixelsPerMetre: z.number().positive().default(1200),
     /** Position in the product switcher; lower comes first and the first is the default. */
     order: z.number().default(100),
   })
@@ -191,6 +224,7 @@ export const productDefinitionSchema = z
     const optionalParts = new Set(product.parts.filter((p) => p.optional).map((p) => p.id));
     const groupIds = new Set<string>();
     const motionIds = new Set<string>();
+    const screenIds = new Set(product.screens.map((screen) => screen.id));
 
     const requirePart = (partId: string, path: (string | number)[]) => {
       if (!partIds.has(partId)) {
@@ -243,6 +277,18 @@ export const productDefinitionSchema = z
       }
     });
 
+    product.workspaces.forEach((workspace, workspaceIndex) => {
+      workspace.windows.forEach((window, windowIndex) => {
+        if (!screenIds.has(window.screen)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['workspaces', workspaceIndex, 'windows', windowIndex, 'screen'],
+            message: `unknown screen "${window.screen}"`,
+          });
+        }
+      });
+    });
+
     product.motions.forEach((motion, motionIndex) => {
       const path = ['motions', motionIndex];
       if (motionIds.has(motion.id)) {
@@ -274,6 +320,9 @@ export type MaterialGroup = z.output<typeof materialGroupSchema>;
 export type ToggleGroup = z.output<typeof toggleGroupSchema>;
 export type Option = OptionGroup['options'][number];
 export type Motion = z.output<typeof motionSchema>;
+export type Screen = z.output<typeof screenSchema>;
+export type Workspace = z.output<typeof workspaceSchema>;
+export type WorkspaceWindow = z.output<typeof workspaceWindowSchema>;
 
 /** Parses and validates a definition, returning a readable error message on failure. */
 export function parseProductDefinition(

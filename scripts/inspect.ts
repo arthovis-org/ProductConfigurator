@@ -66,6 +66,11 @@ const product = products.find((p) => (p as { id: string }).id === id) as
       name: string;
       optionGroups: { type: string; label: string; options: { label: string }[] }[];
       motions: { label: string; min: number; max: number; unit: string }[];
+      screens: { id: string; node: string; label: string }[];
+      workspaces: {
+        label: string;
+        windows: { title: string; url: string; screen: string }[];
+      }[];
     }
   | undefined;
 
@@ -88,6 +93,18 @@ if (product) {
     console.log(
       `  ${group.label} (${group.type}): ${group.options.map((o) => o.label).join(' / ')}`,
     );
+  }
+
+  if (product.screens.length > 0) {
+    console.log('\nScreens');
+    for (const screen of product.screens) console.log(`  ${screen.label}: ${screen.node}`);
+  }
+  for (const workspace of product.workspaces) {
+    console.log(`\nWorkspace "${workspace.label}"`);
+    for (const window of workspace.windows) {
+      const screen = product.screens.find((s) => s.id === window.screen);
+      console.log(`  ${window.title} on ${screen?.label ?? window.screen}: ${window.url}`);
+    }
   }
 }
 

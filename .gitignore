@@ -9,3 +9,7 @@ npm-debug.log*
 # Blender autosaves and backups
 *.blend1
 *.blend2
+
+# Personal Claude Code settings and dev-server config
+.claude/settings.local.json
+.claude/launch.json

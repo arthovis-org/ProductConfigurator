@@ -29,5 +29,33 @@
         "walnut": { "price": 180 }
       }
     }
+  },
+  "screens": {
+    "labels": {
+      "MainMonitor": "Main",
+      "MonitorLeft": "Left",
+      "MonitorRight": "Right",
+      "MonitorBottom": "Desk"
+    }
+  },
+  "workspaces": {
+    "office": {
+      "label": "Office",
+      "description": "Calendar, research, notes and a whiteboard, each on its own screen.",
+      "windows": [
+        {
+          "title": "Calendar",
+          "url": "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&mode=WEEK",
+          "screen": "MainMonitor"
+        },
+        {
+          "title": "Wikipedia",
+          "url": "https://en.wikipedia.org/wiki/Multi-monitor",
+          "screen": "MonitorLeft"
+        },
+        { "title": "Notes", "url": "https://stackedit.io/app", "screen": "MonitorRight" },
+        { "title": "Whiteboard", "url": "https://excalidraw.com/", "screen": "MonitorBottom" }
+      ]
+    }
   }
 }
