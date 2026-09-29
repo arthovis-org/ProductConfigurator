@@ -4,7 +4,7 @@
  */
 import { create } from 'zustand';
 import { getProduct } from '@/catalog';
-import type { ProductDefinition, Workspace, WorkspaceWindow } from '@/catalog/schema';
+import type { ProductDefinition, Screen, Workspace, WorkspaceWindow } from '@/catalog/schema';
 import { useConfiguratorStore } from './configuratorStore';
 
 export interface WindowDrag {
@@ -15,6 +15,13 @@ export interface WindowDrag {
   y: number;
   /** Screen under the pointer, where the window would land. */
   over: string | null;
+}
+
+/** A switched-on screen as the page lays it out: its size in CSS pixels. */
+export interface ScreenSurfaceInfo {
+  screen: Screen;
+  widthPx: number;
+  heightPx: number;
 }
 
 /** Finds the screen under a viewport position; provided by the viewer while it is mounted. */
@@ -33,6 +40,9 @@ interface WorkspaceState {
   focus: string | null;
   drag: WindowDrag | null;
   pickScreen: ScreenPicker | null;
+  /** Screens that are switched on, and the one that takes the windows of the others. */
+  surfaces: readonly ScreenSurfaceInfo[];
+  primaryScreen: string | undefined;
 
   resetFor: (product: ProductDefinition) => void;
   enter: (workspaceId?: string) => void;
@@ -43,6 +53,7 @@ interface WorkspaceState {
   setFocus: (screenId: string | null) => void;
   setCameraFree: (free: boolean) => void;
   setPicker: (picker: ScreenPicker | null) => void;
+  setSurfaces: (surfaces: readonly ScreenSurfaceInfo[], primaryScreen: string | undefined) => void;
   startDrag: (window: WorkspaceWindow, x: number, y: number) => void;
   updateDrag: (x: number, y: number) => void;
   /** Ends a drag, moving the window if it was dropped on another screen. */
@@ -73,6 +84,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   focus: null,
   drag: null,
   pickScreen: null,
+  surfaces: [],
+  primaryScreen: undefined,
 
   resetFor: (product) => {
     if (get().productId === product.id) return;
@@ -120,6 +133,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   setFocus: (focus) => set({ focus }),
   setCameraFree: (cameraFree) => set({ cameraFree }),
   setPicker: (pickScreen) => set({ pickScreen }),
+  setSurfaces: (surfaces, primaryScreen) => set({ surfaces, primaryScreen }),
 
   startDrag: (window, x, y) =>
     set({ drag: { windowId: window.id, title: window.title, x, y, over: null } }),

@@ -131,7 +131,7 @@ to judge scale; what you see there with 1 UV unit ≈ 1 m is what `repeat: 1` sh
 ## Screens and workspaces
 
 A workspace puts **live websites on the product's monitors**, so visitors can feel what the extra
-screens are for: they press "Try the workspace", the camera moves to a seated view, and they can
+screens are for: they press "Try the … workspace" on the card over the viewer, the camera moves to a seated view, and they can
 use the sites, drag a window by its title bar onto another monitor, or zoom to one screen (⤢).
 
 **Screens** are found automatically: every object whose mesh uses the Blender material

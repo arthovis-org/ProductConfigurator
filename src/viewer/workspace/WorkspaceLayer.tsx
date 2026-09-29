@@ -1,10 +1,17 @@
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
-import { Quaternion, Raycaster, Vector2, Vector3, type Object3D } from 'three';
+import {
+  Quaternion,
+  Raycaster,
+  Vector2,
+  Vector3,
+  type Object3D,
+  type PerspectiveCamera,
+} from 'three';
 import type { ProductDefinition } from '@/catalog/schema';
-import { layoutWindows, useWorkspaceStore, workspaceById } from '@/state/workspaceStore';
+import { useWorkspaceStore } from '@/state/workspaceStore';
 import { matrixRelativeTo } from '../nodeUtils';
-import { ScreenSurface } from './ScreenSurface';
+import { cssProjection, updateCssProjection } from './cssProjection';
 import { screenFrame, screenMeshes, type ScreenFrame } from './screenFrame';
 import { WorkspaceCamera, type CameraTarget } from './WorkspaceCamera';
 
@@ -41,17 +48,17 @@ function isShown(node: Object3D, scene: Object3D, hidden: ReadonlySet<string>) {
 
 /**
  * Workspace mode inside the canvas: finds each screen's display surface, tracks which ones
- * are switched on, lets the drag code find the screen under the pointer, and mounts the live
- * websites only while the mode is on, so nothing loads until a visitor asks for it.
+ * are switched on, lets the drag code find the screen under the pointer, and keeps the live
+ * websites (the screen layer over the canvas) on their screens every frame.
  */
 export function WorkspaceLayer({ product, scene, index, hiddenNodes }: WorkspaceLayerProps) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
   const active = useWorkspaceStore((s) => s.active);
-  const workspaceId = useWorkspaceStore((s) => s.workspaceId);
-  const placement = useWorkspaceStore((s) => s.placement);
   const dragging = useWorkspaceStore((s) => s.drag !== null);
   const setPicker = useWorkspaceStore((s) => s.setPicker);
+  const setSurfaces = useWorkspaceStore((s) => s.setSurfaces);
   const updateDrag = useWorkspaceStore((s) => s.updateDrag);
   const endDrag = useWorkspaceStore((s) => s.endDrag);
 
@@ -102,6 +109,45 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
     [visible],
   );
 
+  // Tell the screen layer which screens are on and how many CSS pixels each one spans.
+  useEffect(() => {
+    const ppm = product.pixelsPerMetre;
+    setSurfaces(
+      visible.map((s) => ({
+        screen: s.screen,
+        widthPx: Math.round(s.frame.width * s.worldScale * ppm),
+        heightPx: Math.round(s.frame.height * s.worldScale * ppm),
+      })),
+      primary?.screen.id,
+    );
+  }, [visible, primary, product.pixelsPerMetre, setSurfaces]);
+
+  const frames = useMemo(() => new Map(visible.map((s) => [s.screen.id, s.frame])), [visible]);
+  useEffect(() => {
+    cssProjection.invalidate = invalidate;
+    return () => {
+      cssProjection.invalidate = null;
+    };
+  }, [invalidate]);
+  // When the scene is drawn, after everything moved this frame (camera, desk height), so the
+  // sites never lag behind. Other renders of the scene (contact shadows) use other cameras.
+  const root = useThree((s) => s.scene);
+  const size = useThree((s) => s.size);
+  useEffect(() => {
+    if (!active) return;
+    const previous = root.onAfterRender.bind(root);
+    root.onAfterRender = (renderer, scene, drawn, ...rest) => {
+      previous(renderer, scene, drawn, ...rest);
+      if (drawn === camera) {
+        updateCssProjection(camera as PerspectiveCamera, size, frames, product.pixelsPerMetre);
+      }
+    };
+    invalidate();
+    return () => {
+      root.onAfterRender = previous;
+    };
+  }, [active, root, camera, size, frames, product.pixelsPerMetre, invalidate]);
+
   // Screen under a viewport position, for dropping dragged windows.
   useEffect(() => {
     const raycaster = new Raycaster();
@@ -141,31 +187,5 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
   }, [dragging, updateDrag, endDrag]);
 
   if (screens.length === 0) return null;
-
-  const workspace = workspaceById(product, workspaceId);
-  const layout = layoutWindows(
-    workspace,
-    placement,
-    visible.map((s) => s.screen.id),
-    primary?.screen.id,
-  );
-  const targets = visible.map((s) => s.screen);
-
-  return (
-    <>
-      <WorkspaceCamera screens={cameraTargets} primaryId={primary?.screen.id} />
-      {active &&
-        visible.map((s) => (
-          <ScreenSurface
-            key={s.screen.id}
-            screen={s.screen}
-            frame={s.frame}
-            worldScale={s.worldScale}
-            pixelsPerMetre={product.pixelsPerMetre}
-            windows={layout.get(s.screen.id) ?? []}
-            targets={targets}
-          />
-        ))}
-    </>
-  );
+  return <WorkspaceCamera screens={cameraTargets} primaryId={primary?.screen.id} />;
 }

@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '@/state/workspaceStore';
 import { WorkspaceHud } from '@/ui/workspace/WorkspaceHud';
 import { preloadCurrentProduct } from './models';
 import { ProductModel } from './ProductModel';
+import { ScreenLayer } from './workspace/ScreenLayer';
 import styles from './Scene.module.css';
 
 // This module is loaded lazily, and this is the earliest point where three is available.
@@ -57,6 +58,7 @@ export function Scene() {
           // which includes the full height range of a motorised desk.
         />
       </Canvas>
+      <ScreenLayer />
       <WorkspaceHud />
     </div>
   );

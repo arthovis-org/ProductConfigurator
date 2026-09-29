@@ -59,9 +59,13 @@ Live websites on the product's screens. The catalog lists screens (meshes using 
 material) and workspaces (windows with a URL and a screen). `screenFrame.ts` fits each display
 surface: the plane from a least-squares fit of positions against UVs, the facing side from the
 normals, and the top edge from the scene's up direction (or "away from the viewer" for a screen
-lying almost flat), because UV layouts are often rotated. `ScreenSurface` portals a drei
-`<Html transform>` into the screen mesh, so the DOM rides with the height motion and hides with
-the monitor, sized at a fixed pixel density so text is the same physical size on every screen.
+lying almost flat), because UV layouts are often rotated. The sites live in a DOM layer over the canvas
+(`ScreenLayer`, one `ScreenSurface` per switched-on screen, sized at a fixed pixel density so
+text is the same physical size on every screen). Each time the scene is drawn,
+`cssProjection.ts` gives the layer the camera's perspective and every surface its screen's
+world transform, like three's CSS3DRenderer but at 1000 CSS px per metre: browsers round 3D
+layer positions to whole pixels, which at drei `<Html transform>`'s 1 px per metre put a screen
+1.45 m up at 1 m.
 `WorkspaceCamera` flies to a seated view (or one focused screen) and back, with the orbit
 controls disabled meanwhile; `Scene` pauses `Bounds` refitting while it owns the camera. Window
 drags start on a title bar and are followed on the whole window; the screen under the pointer

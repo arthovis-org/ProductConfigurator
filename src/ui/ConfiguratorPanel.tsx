@@ -5,12 +5,11 @@ import { MotionControl } from './controls/MotionControl';
 import { ModelCheck } from './ModelCheck';
 import { OptionGroupControl } from './OptionGroupControl';
 import { PriceSummary } from './PriceSummary';
-import { WorkspaceControl } from './WorkspaceControl';
 import { formatPriceDelta } from './formatPrice';
 
 /**
- * Lists the product's motions and workspace demo (live demo controls), then every option
- * group, followed by the price summary.
+ * Lists the product's motions (live demo controls), then every option group, followed by the
+ * price summary.
  */
 export function ConfiguratorPanel() {
   const product = useProduct();
@@ -34,18 +33,6 @@ export function ConfiguratorPanel() {
           <MotionControl motion={motion} />
         </section>
       ))}
-
-      {product.workspaces.length > 0 && (
-        <section className={styles.group} aria-labelledby="workspace-demo">
-          <div className={styles.groupHeader}>
-            <h2 id="workspace-demo" className={styles.groupLabel}>
-              Workspace
-            </h2>
-            <span className={styles.demoBadge}>Live demo</span>
-          </div>
-          <WorkspaceControl />
-        </section>
-      )}
 
       {product.optionGroups.map((group) => {
         const option = selectedOption(group, selections);

@@ -1,24 +1,108 @@
-.bar {
+/* Start card, bottom left of the viewer. */
+.card {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(300px, calc(100% - 32px));
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.description {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Toolbar while a workspace runs, top centre. */
+.top {
   position: absolute;
   top: 12px;
   left: 50%;
   z-index: 200;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 6px 6px 6px 14px;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  transform: translateX(-50%);
   font-size: 0.8125rem;
   white-space: nowrap;
 }
 
 .name {
-  margin-right: 4px;
+  margin: 0 4px 0 8px;
   font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+}
+
+.tab {
+  padding: 0.3125rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.tab[aria-checked='true'] {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+.hint {
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .button {
@@ -27,11 +111,17 @@
   border: 1px solid var(--border-strong);
   font-size: 0.8125rem;
   font-weight: 500;
-  transition: background-color var(--duration) var(--ease);
+  transition:
+    background-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
 }
 
 .button:hover {
   background: var(--surface-hover);
+}
+
+.button:active {
+  transform: scale(0.98);
 }
 
 .primary {
@@ -43,6 +133,11 @@
 .primary:hover {
   background: var(--accent);
   opacity: 0.9;
+}
+
+.card .button {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
 }
 
 .ghost {
