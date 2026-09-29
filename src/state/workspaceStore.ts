@@ -62,6 +62,10 @@ interface WorkspaceState {
   placement: Readonly<Record<string, string>>;
   /** Window ids in the order they tile on a screen (left to right, top to bottom). */
   order: readonly string[];
+  /** Workspace windows the visitor closed. */
+  closed: readonly string[];
+  /** Sites the visitor opened on an empty screen. */
+  opened: readonly WorkspaceWindow[];
   /** Screen the camera zooms to, or null for the overview of all screens. */
   focus: string | null;
   drag: WindowDrag | null;
@@ -83,6 +87,9 @@ interface WorkspaceState {
   select: (workspaceId: string) => void;
   resetWindows: () => void;
   moveWindow: (windowId: string, screenId: string) => void;
+  closeWindow: (windowId: string) => void;
+  /** Opens a site on a screen: a closed workspace window by id, or any https link. */
+  openWindow: (screenId: string, site: { id?: string; title: string; url: string }) => void;
   setFocus: (screenId: string | null) => void;
   setCameraFree: (free: boolean) => void;
   setPicker: (picker: ScreenPicker | null) => void;
@@ -110,8 +117,21 @@ function initialWindows(workspace: Workspace | undefined) {
   return {
     placement: Object.fromEntries(windows.map((w) => [w.id, w.screen])),
     order: windows.map((w) => w.id),
+    closed: [],
+    opened: [],
   };
 }
+
+/** The windows on show: the workspace's own that are still open, and the visitor's. */
+export function openWindows(
+  workspace: Workspace | undefined,
+  closed: readonly string[],
+  opened: readonly WorkspaceWindow[],
+): WorkspaceWindow[] {
+  return [...(workspace?.windows ?? []).filter((w) => !closed.includes(w.id)), ...opened];
+}
+
+let openedCount = 0;
 
 /** Placement and order after dropping `drag` on its target. */
 function dropped(
@@ -142,6 +162,8 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   workspaceId: null,
   placement: {},
   order: [],
+  closed: [],
+  opened: [],
   focus: null,
   drag: null,
   pickScreen: null,
@@ -199,6 +221,25 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       order: [...state.order.filter((w) => w !== windowId), windowId],
     })),
 
+  closeWindow: (windowId) =>
+    set((state) => ({
+      closed: state.closed.includes(windowId) ? state.closed : [...state.closed, windowId],
+      opened: state.opened.filter((w) => w.id !== windowId),
+      order: state.order.filter((w) => w !== windowId),
+    })),
+
+  openWindow: (screenId, site) => {
+    const id = site.id ?? `site-${++openedCount}`;
+    set((state) => ({
+      closed: state.closed.filter((w) => w !== id),
+      opened: site.id
+        ? state.opened
+        : [...state.opened, { id, title: site.title, url: site.url, screen: screenId }],
+      placement: { ...state.placement, [id]: screenId },
+      order: [...state.order.filter((w) => w !== id), id],
+    }));
+  },
+
   // Zooming to one screen takes the seat again.
   setFocus: (focus) => set(focus ? { focus, seated: true, cameraFree: false } : { focus }),
   setCameraFree: (cameraFree) => set({ cameraFree }),
@@ -227,7 +268,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
  * hidden (its monitor switched off) moves to the primary screen until its own screen is back.
  */
 export function layoutWindows(
-  workspace: Workspace | undefined,
+  windows: readonly WorkspaceWindow[],
   placement: Readonly<Record<string, string>>,
   order: readonly string[],
   visibleScreens: readonly string[],
@@ -238,7 +279,7 @@ export function layoutWindows(
     return at < 0 ? Infinity : at;
   };
   const layout = new Map<string, WorkspaceWindow[]>();
-  for (const window of [...(workspace?.windows ?? [])].sort((a, b) => rank(a) - rank(b))) {
+  for (const window of [...windows].sort((a, b) => rank(a) - rank(b))) {
     const wanted = placement[window.id] ?? window.screen;
     const screen = visibleScreens.includes(wanted) ? wanted : primaryScreen;
     if (!screen) continue;

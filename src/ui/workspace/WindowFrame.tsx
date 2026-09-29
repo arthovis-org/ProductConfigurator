@@ -17,13 +17,14 @@ const SANDBOX =
 
 /**
  * One website on a screen: a title bar to drag it between screens, move it from a menu, zoom
- * the camera to its screen or open the site in a new tab (for sites that refuse to be shown
- * inside another page), and the site itself in an iframe.
+ * the camera to its screen, open the site in a new tab (for sites that refuse to be shown
+ * inside another page) or close it, and the site itself in an iframe.
  */
 export function WindowFrame({ window: win, screenId, screens }: WindowFrameProps) {
   const startDrag = useWorkspaceStore((s) => s.startDrag);
   const moveWindow = useWorkspaceStore((s) => s.moveWindow);
   const setFocus = useWorkspaceStore((s) => s.setFocus);
+  const closeWindow = useWorkspaceStore((s) => s.closeWindow);
   const focused = useWorkspaceStore((s) => s.focus === screenId);
   const [iconFailed, setIconFailed] = useState(false);
   const host = new URL(win.url).host;
@@ -88,6 +89,15 @@ export function WindowFrame({ window: win, screenId, screens }: WindowFrameProps
           >
             ↗
           </a>
+          <button
+            type="button"
+            className={`${styles.button} ${styles.close}`}
+            aria-label={`Close ${win.title}`}
+            title="Close"
+            onClick={() => closeWindow(win.id)}
+          >
+            ×
+          </button>
         </div>
       </div>
       <iframe

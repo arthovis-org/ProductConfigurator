@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useProduct } from '@/state/configuratorStore';
-import { layoutWindows, useWorkspaceStore, workspaceById } from '@/state/workspaceStore';
+import {
+  layoutWindows,
+  openWindows,
+  useWorkspaceStore,
+  workspaceById,
+} from '@/state/workspaceStore';
 import { cssProjection } from './cssProjection';
 import styles from './ScreenLayer.module.css';
 import { ScreenSurface } from './ScreenSurface';
@@ -16,6 +21,8 @@ export function ScreenLayer() {
   const workspaceId = useWorkspaceStore((s) => s.workspaceId);
   const placement = useWorkspaceStore((s) => s.placement);
   const order = useWorkspaceStore((s) => s.order);
+  const closed = useWorkspaceStore((s) => s.closed);
+  const opened = useWorkspaceStore((s) => s.opened);
   const surfaces = useWorkspaceStore((s) => s.surfaces);
   const primaryScreen = useWorkspaceStore((s) => s.primaryScreen);
   const camera = useRef<HTMLDivElement>(null);
@@ -31,8 +38,10 @@ export function ScreenLayer() {
 
   if (!active) return null;
 
+  const workspace = workspaceById(product, workspaceId);
+  const closedWindows = (workspace?.windows ?? []).filter((w) => closed.includes(w.id));
   const layout = layoutWindows(
-    workspaceById(product, workspaceId),
+    openWindows(workspace, closed, opened),
     placement,
     order,
     surfaces.map((s) => s.screen.id),
@@ -49,6 +58,7 @@ export function ScreenLayer() {
             surface={surface}
             windows={layout.get(surface.screen.id) ?? []}
             targets={targets}
+            closed={closedWindows}
           />
         ))}
       </div>

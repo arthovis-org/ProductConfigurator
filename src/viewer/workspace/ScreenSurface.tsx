@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { Screen, WorkspaceWindow } from '@/catalog/schema';
 import { useWorkspaceStore, type ScreenSurfaceInfo, type WindowDrag } from '@/state/workspaceStore';
+import { EmptyScreen } from '@/ui/workspace/EmptyScreen';
 import { WindowFrame } from '@/ui/workspace/WindowFrame';
 import { cssProjection } from './cssProjection';
 import styles from './ScreenSurface.module.css';
@@ -10,6 +11,8 @@ interface ScreenSurfaceProps {
   windows: readonly WorkspaceWindow[];
   /** Screens a window can be moved to. */
   targets: readonly Screen[];
+  /** Closed workspace windows, which an empty screen offers to reopen. */
+  closed: readonly WorkspaceWindow[];
 }
 
 /**
@@ -18,7 +21,7 @@ interface ScreenSurfaceProps {
  * same pixel density, so text is the same physical size everywhere and a portrait screen gets
  * the narrow layout a real one would.
  */
-export function ScreenSurface({ surface, windows, targets }: ScreenSurfaceProps) {
+export function ScreenSurface({ surface, windows, targets, closed }: ScreenSurfaceProps) {
   const { screen, widthPx, heightPx } = surface;
   const ref = useRef<HTMLDivElement>(null);
   const drop = useWorkspaceStore((s) => (s.drag?.over?.screen === screen.id ? s.drag.over : null));
@@ -43,11 +46,7 @@ export function ScreenSurface({ surface, windows, targets }: ScreenSurfaceProps)
       aria-label={`${screen.label} screen`}
     >
       {windows.length === 0 ? (
-        <div className={styles.empty}>
-          {screen.label} screen
-          <br />
-          Drag a window here
-        </div>
+        <EmptyScreen screen={screen} closed={closed} />
       ) : (
         windows.map((window) => (
           <WindowFrame key={window.id} window={window} screenId={screen.id} screens={targets} />

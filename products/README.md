@@ -135,8 +135,9 @@ screens are for: they press "Try the … workspace" on the card over the viewer,
 a seated view (looking down a little when a screen lies on the desk), and they can use the sites,
 zoom to one screen (⤢), or drag a window by its title bar onto another one: dropped on the
 window's edge the two share the screen side by side (stacked on a portrait screen), dropped on its
-middle they swap screens. "Look around" hands the camera back while the sites stay on; "Close"
-turns them off.
+middle they swap screens. Windows can be closed (×); an empty screen offers to reopen them,
+a few suggested sites that allow embedding, or any https address. "Look around" hands the camera
+back while the sites stay on; "Close" turns them off.
 
 **Screens** are found automatically: every object whose mesh uses the Blender material
 **`Screen`** is one (the display surface, not the bezel). Nothing else is needed in Blender; the
@@ -171,7 +172,7 @@ toggle; windows on a switched-off screen move to the main screen until it's back
   layout.
 - `screens.tilt` (degrees, default 15) is how far the seated view looks down when a screen lies on
   the desk, so it can be read; `0` looks straight at the main screen. The seated camera follows
-  the desk as its height changes.
+  the desk as its height changes, a little behind it so the movement can be seen.
 
 ### Which sites can be shown
 

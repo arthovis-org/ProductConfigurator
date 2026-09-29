@@ -124,11 +124,6 @@ export function WorkspaceHud() {
             Close
           </button>
         </div>
-        <p className={styles.hint}>
-          {seated
-            ? 'Drag a title bar onto a window: drop on its edge to go side by side, on its middle to swap'
-            : 'Drag around the desk to look at it · the sites keep working'}
-        </p>
       </div>
       {drag && (
         <div className={styles.ghost} style={{ left: drag.x, top: drag.y }} aria-hidden="true">

@@ -36,6 +36,11 @@ interface Pose {
 
 /** Move duration: short hops are quick, a swing round from behind the desk a little longer. */
 const MOVE_SECONDS = { min: 0.55, max: 0.9 };
+/**
+ * How far behind the desk the seated camera follows a height change (seconds of exponential
+ * lag): long enough to see the desk move in the view, short enough to keep the screens framed.
+ */
+const FOLLOW_LAG = 0.6;
 /** Space around the screens; small, so they fill the view. */
 const MARGIN = 1.03;
 const WORLD_UP = new Vector3(0, 1, 0);
@@ -201,6 +206,8 @@ export function WorkspaceCamera({ screens, primaryId, tilt }: WorkspaceCameraPro
   const move = useRef<Move | null>(null);
   /** Where the screen the camera faces was last frame, to follow it up and down. */
   const anchor = useRef<Vector3 | null>(null);
+  /** How much the camera still has to move to catch up with the desk. */
+  const behind = useRef(new Vector3());
 
   const current = (): Pose => ({
     position: camera.position.clone(),
@@ -279,26 +286,34 @@ export function WorkspaceCamera({ screens, primaryId, tilt }: WorkspaceCameraPro
     const m = move.current;
 
     // Seated, the camera rises and sinks with the desk: it moves by as much as the screen it
-    // faces (motions run before this, so it happens in the same frame).
+    // faces, but eases after it, so the desk can be seen moving (motions run before this).
     const followed = screens.find((s) => s.id === (focus ?? primaryId)) ?? screens[0];
     if (seated && followed) {
       const now = worldCentre(followed);
-      const shift = anchor.current ? now.clone().sub(anchor.current) : null;
+      if (anchor.current) behind.current.add(now.clone().sub(anchor.current));
       anchor.current = now;
-      if (shift && shift.lengthSq() > 1e-12) {
-        if (m) {
-          for (const pose of [m.from, m.to]) {
-            pose.position.add(shift);
-            pose.target.add(shift);
-          }
-        } else if (controls) {
-          camera.position.add(shift);
-          controls.target.add(shift);
-          camera.lookAt(controls.target);
+      const lag = behind.current;
+      if (m) {
+        // Mid-move the pose is recomputed every frame, so shift both ends at once.
+        for (const pose of [m.from, m.to]) {
+          pose.position.add(lag);
+          pose.target.add(lag);
         }
+        lag.set(0, 0, 0);
+      } else if (controls && lag.lengthSq() > 0) {
+        const step =
+          lag.lengthSq() < 1e-8
+            ? lag.clone()
+            : lag.clone().multiplyScalar(1 - Math.exp(-Math.min(delta, 0.1) / FOLLOW_LAG));
+        camera.position.add(step);
+        controls.target.add(step);
+        camera.lookAt(controls.target);
+        lag.sub(step);
+        invalidate();
       }
     } else {
       anchor.current = null;
+      behind.current.set(0, 0, 0);
     }
 
     if (!m) return;

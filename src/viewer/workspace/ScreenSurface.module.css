@@ -23,17 +23,6 @@
   flex-direction: column;
 }
 
-.empty {
-  display: grid;
-  place-items: center;
-  color: rgb(255 255 255 / 55%);
-  font:
-    500 18px/1.4 'Inter Variable',
-    system-ui,
-    sans-serif;
-  text-align: center;
-}
-
 /* Where a dragged window would land. */
 .dropPreview {
   position: absolute;

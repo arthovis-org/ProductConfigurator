@@ -88,6 +88,15 @@
   background: rgb(0 0 0 / 8%);
 }
 
+.close {
+  font-size: 30px;
+}
+
+.close:hover {
+  background: #e5484d;
+  color: #ffffff;
+}
+
 .move:focus-visible,
 .button:focus-visible {
   outline: 2px solid #3b6fe0;
