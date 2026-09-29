@@ -64,7 +64,7 @@
         {
           "title": "Calendar",
           "url": "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&mode=WEEK",
-          "screen": "MainMonitor"
+          "screen": "MonitorBottom"
         },
         {
           "title": "Wikipedia",
@@ -72,7 +72,7 @@
           "screen": "MonitorLeft"
         },
         { "title": "Notes", "url": "https://stackedit.io/app", "screen": "MonitorRight" },
-        { "title": "Whiteboard", "url": "https://excalidraw.com/", "screen": "MonitorBottom" }
+        { "title": "Whiteboard", "url": "https://excalidraw.com/", "screen": "MainMonitor" }
       ]
     }
   }
