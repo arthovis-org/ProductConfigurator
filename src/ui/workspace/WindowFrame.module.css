@@ -1,5 +1,6 @@
 /* Windows live on the monitors, so they keep a neutral, OS-like look in both colour schemes. */
 .window {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   min-width: 0;

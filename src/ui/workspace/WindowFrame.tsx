@@ -8,6 +8,8 @@ interface WindowFrameProps {
   screenId: string;
   /** Screens the window can move to (the visible ones). */
   screens: readonly Screen[];
+  /** Share of the screen, as a flex weight against the other windows on it. */
+  grow: number;
 }
 
 // Keeps sites that need scripts, forms and their own storage working, while a sandbox still
@@ -20,7 +22,7 @@ const SANDBOX =
  * the camera to its screen, open the site in a new tab (for sites that refuse to be shown
  * inside another page) or close it, and the site itself in an iframe.
  */
-export function WindowFrame({ window: win, screenId, screens }: WindowFrameProps) {
+export function WindowFrame({ window: win, screenId, screens, grow }: WindowFrameProps) {
   const startDrag = useWorkspaceStore((s) => s.startDrag);
   const moveWindow = useWorkspaceStore((s) => s.moveWindow);
   const setFocus = useWorkspaceStore((s) => s.setFocus);
@@ -38,7 +40,7 @@ export function WindowFrame({ window: win, screenId, screens }: WindowFrameProps
   };
 
   return (
-    <div className={styles.window} data-window-id={win.id}>
+    <div className={styles.window} data-window-id={win.id} style={{ flexGrow: grow }}>
       <div
         className={styles.titleBar}
         onPointerDown={onPointerDown}

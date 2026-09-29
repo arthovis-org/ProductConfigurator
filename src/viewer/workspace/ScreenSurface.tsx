@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef } from 'react';
+import { Fragment, useLayoutEffect, useRef } from 'react';
 import type { Screen, WorkspaceWindow } from '@/catalog/schema';
 import { useWorkspaceStore, type ScreenSurfaceInfo, type WindowDrag } from '@/state/workspaceStore';
+import { Divider } from '@/ui/workspace/Divider';
 import { EmptyScreen } from '@/ui/workspace/EmptyScreen';
 import { WindowFrame } from '@/ui/workspace/WindowFrame';
 import { cssProjection } from './cssProjection';
@@ -24,6 +25,8 @@ interface ScreenSurfaceProps {
 export function ScreenSurface({ surface, windows, targets, closed }: ScreenSurfaceProps) {
   const { screen, widthPx, heightPx } = surface;
   const ref = useRef<HTMLDivElement>(null);
+  const portrait = heightPx > widthPx;
+  const sizes = useWorkspaceStore((s) => s.sizes);
   const drop = useWorkspaceStore((s) => (s.drag?.over?.screen === screen.id ? s.drag.over : null));
   const dropLabel = useWorkspaceStore((s) => (s.drag ? dropDescription(s.drag, windows) : ''));
 
@@ -41,16 +44,34 @@ export function ScreenSurface({ surface, windows, targets, closed }: ScreenSurfa
     <div
       ref={ref}
       className={styles.screen}
-      data-portrait={heightPx > widthPx || undefined}
+      data-portrait={portrait || undefined}
       style={{ width: widthPx, height: heightPx }}
       aria-label={`${screen.label} screen`}
     >
       {windows.length === 0 ? (
         <EmptyScreen screen={screen} closed={closed} />
       ) : (
-        windows.map((window) => (
-          <WindowFrame key={window.id} window={window} screenId={screen.id} screens={targets} />
-        ))
+        windows.map((window, i) => {
+          const previous = windows[i - 1];
+          return (
+            <Fragment key={window.id}>
+              {previous && (
+                <Divider
+                  screenId={screen.id}
+                  first={previous.id}
+                  second={window.id}
+                  stacked={portrait}
+                />
+              )}
+              <WindowFrame
+                window={window}
+                screenId={screen.id}
+                screens={targets}
+                grow={sizes[window.id] ?? 1}
+              />
+            </Fragment>
+          );
+        })
       )}
       {drop && (
         <div

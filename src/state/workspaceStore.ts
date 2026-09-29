@@ -42,6 +42,13 @@ export interface ScreenSurfaceInfo {
   heightPx: number;
 }
 
+/** A viewport position on a screen's plane, in that screen's CSS pixels; from the viewer. */
+export type ScreenLocator = (
+  screenId: string,
+  clientX: number,
+  clientY: number,
+) => { x: number; y: number } | null;
+
 /** Finds the drop target under a viewport position; provided by the viewer while mounted. */
 export type ScreenPicker = (
   clientX: number,
@@ -66,10 +73,13 @@ interface WorkspaceState {
   closed: readonly string[];
   /** Sites the visitor opened on an empty screen. */
   opened: readonly WorkspaceWindow[];
+  /** Share of its screen each window takes, as flex weights (1 when not resized). */
+  sizes: Readonly<Record<string, number>>;
   /** Screen the camera zooms to, or null for the overview of all screens. */
   focus: string | null;
   drag: WindowDrag | null;
   pickScreen: ScreenPicker | null;
+  locateOnScreen: ScreenLocator | null;
   /** Screens that are switched on, and the one that takes the windows of the others. */
   surfaces: readonly ScreenSurfaceInfo[];
   primaryScreen: string | undefined;
@@ -88,11 +98,14 @@ interface WorkspaceState {
   resetWindows: () => void;
   moveWindow: (windowId: string, screenId: string) => void;
   closeWindow: (windowId: string) => void;
+  /** Sets the weights of two neighbouring windows, e.g. while their divider is dragged. */
+  resizeWindows: (first: string, second: string, firstWeight: number, secondWeight: number) => void;
   /** Opens a site on a screen: a closed workspace window by id, or any https link. */
   openWindow: (screenId: string, site: { id?: string; title: string; url: string }) => void;
   setFocus: (screenId: string | null) => void;
   setCameraFree: (free: boolean) => void;
   setPicker: (picker: ScreenPicker | null) => void;
+  setLocator: (locator: ScreenLocator | null) => void;
   setSurfaces: (surfaces: readonly ScreenSurfaceInfo[], primaryScreen: string | undefined) => void;
   setHudInset: (inset: number) => void;
   startDrag: (window: WorkspaceWindow, fromScreen: string, x: number, y: number) => void;
@@ -119,6 +132,7 @@ function initialWindows(workspace: Workspace | undefined) {
     order: windows.map((w) => w.id),
     closed: [],
     opened: [],
+    sizes: {},
   };
 }
 
@@ -164,9 +178,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   order: [],
   closed: [],
   opened: [],
+  sizes: {},
   focus: null,
   drag: null,
   pickScreen: null,
+  locateOnScreen: null,
   surfaces: [],
   primaryScreen: undefined,
   hudInset: 0,
@@ -228,6 +244,11 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
       order: state.order.filter((w) => w !== windowId),
     })),
 
+  resizeWindows: (first, second, firstWeight, secondWeight) =>
+    set((state) => ({
+      sizes: { ...state.sizes, [first]: firstWeight, [second]: secondWeight },
+    })),
+
   openWindow: (screenId, site) => {
     const id = site.id ?? `site-${++openedCount}`;
     set((state) => ({
@@ -244,6 +265,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   setFocus: (focus) => set(focus ? { focus, seated: true, cameraFree: false } : { focus }),
   setCameraFree: (cameraFree) => set({ cameraFree }),
   setPicker: (pickScreen) => set({ pickScreen }),
+  setLocator: (locateOnScreen) => set({ locateOnScreen }),
   setSurfaces: (surfaces, primaryScreen) => set({ surfaces, primaryScreen }),
   setHudInset: (hudInset) => set({ hudInset }),
 

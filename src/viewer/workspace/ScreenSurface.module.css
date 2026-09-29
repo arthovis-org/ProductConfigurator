@@ -4,7 +4,6 @@
   top: 0;
   left: 0;
   display: flex;
-  gap: 4px;
   box-sizing: border-box;
   padding: 4px;
   overflow: hidden;
@@ -13,10 +12,6 @@
   pointer-events: auto;
   /* Seen from behind the monitor, a screen shows nothing. */
   backface-visibility: hidden;
-}
-
-.screen > * {
-  flex: 1 1 0;
 }
 
 .screen[data-portrait] {

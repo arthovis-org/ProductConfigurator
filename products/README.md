@@ -136,7 +136,7 @@ screens are for: they press "Try the … workspace" on the card over the viewer,
 a seated view (looking down a little when a screen lies on the desk), and they can use the sites,
 zoom to one screen (⤢), or drag a window by its title bar onto another one: dropped on the
 window's edge the two share the screen side by side (stacked on a portrait screen), dropped on its
-middle they swap screens. Windows can be closed (×); an empty screen offers to reopen them,
+middle they swap screens. The line between two windows on one screen can be dragged to share the space differently (double click makes them equal). Windows can be closed (×); an empty screen offers to reopen them,
 a few suggested sites that allow embedding, or any https address. "Look around" hands the camera
 back while the sites stay on; "Close" turns them off.
 
