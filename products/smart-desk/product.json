@@ -23,17 +23,10 @@
   "decals": [
     {
       "image": "images/virtuos_text_alpha.png",
-      "objects": ["MainBackplate"],
-      "width": 0.12,
+      "objects": ["MainBackplate", "MainBackplatewithSideMonitors"],
+      "width": 0.096,
       "side": "back",
-      "offset": [0, 0.023]
-    },
-    {
-      "image": "images/virtuos_text_alpha.png",
-      "objects": ["MainBackplatewithSideMonitors"],
-      "width": 0.12,
-      "side": "back",
-      "offset": [0, 0.05]
+      "offset": [0, 0.02]
     }
   ],
   "height": {
