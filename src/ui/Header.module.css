@@ -108,3 +108,19 @@
     display: none;
   }
 }
+
+.currency {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.currency:hover {
+  background: var(--surface-hover);
+}

@@ -1,24 +1,19 @@
 import type { MaterialGroup } from '@/catalog/schema';
-import { formatPriceDelta } from '../formatPrice';
+import { usePriceFormat } from '../formatPrice';
 import styles from './MaterialSwatches.module.css';
 
 interface MaterialSwatchesProps {
   options: MaterialGroup['options'];
   selectedId: string;
-  currency: string;
   onSelect: (optionId: string) => void;
 }
 
-export function MaterialSwatches({
-  options,
-  selectedId,
-  currency,
-  onSelect,
-}: MaterialSwatchesProps) {
+export function MaterialSwatches({ options, selectedId, onSelect }: MaterialSwatchesProps) {
+  const format = usePriceFormat();
   return (
     <div className={styles.swatches} role="radiogroup">
       {options.map((option) => {
-        const delta = formatPriceDelta(option.priceDelta, currency);
+        const delta = format.delta(option.priceDelta);
         const title = delta ? `${option.label} (${delta})` : option.label;
         return (
           <button

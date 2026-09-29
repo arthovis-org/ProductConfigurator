@@ -1,7 +1,7 @@
 {
   "name": "Smart Desk",
   "description": "Motorised sit-stand desk with three-stage legs and an integrated monitor setup.",
-  "currency": "EUR",
+  "currency": "USD",
   "basePrice": 749,
   "options": {
     "SideMonitors": {

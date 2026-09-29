@@ -5,7 +5,7 @@ import { MotionControl } from './controls/MotionControl';
 import { ModelCheck } from './ModelCheck';
 import { OptionGroupControl } from './OptionGroupControl';
 import { PriceSummary } from './PriceSummary';
-import { formatPriceDelta } from './formatPrice';
+import { usePriceFormat } from './formatPrice';
 
 /**
  * Lists the product's motions (live demo controls), then every option group, followed by the
@@ -15,6 +15,7 @@ export function ConfiguratorPanel() {
   const product = useProduct();
   const selections = useSelections();
   const selectOption = useConfiguratorStore((state) => state.selectOption);
+  const format = usePriceFormat();
 
   return (
     <div className={styles.panel}>
@@ -36,7 +37,7 @@ export function ConfiguratorPanel() {
 
       {product.optionGroups.map((group) => {
         const option = selectedOption(group, selections);
-        const delta = formatPriceDelta(option.priceDelta, product.currency);
+        const delta = format.delta(option.priceDelta);
         return (
           <section key={group.id} className={styles.group} aria-labelledby={`group-${group.id}`}>
             <div className={styles.groupHeader}>

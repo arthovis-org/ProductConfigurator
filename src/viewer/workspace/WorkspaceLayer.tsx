@@ -2,6 +2,7 @@ import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import {
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   NoBlending,
   Plane,
   Quaternion,
@@ -135,30 +136,38 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
       cssProjection.invalidate = null;
     };
   }, [invalidate]);
-  // While the sites are on, each screen draws as a transparent hole that still hides what is
-  // behind it: the sites under the canvas show through it, and whatever is in front of the
-  // screen (another monitor, its own back, the desk) covers them.
+  // Off, the screens look like switched-off displays: glossy black glass. On, each draws as a
+  // transparent hole that still hides what is behind it: the sites under the canvas show
+  // through it, and whatever is in front of the screen (another monitor, its own back, the
+  // desk) covers them.
   useEffect(() => {
-    if (!active) return;
-    const hole = new MeshBasicMaterial({
-      color: 0x000000,
-      opacity: 0,
-      transparent: true,
-      blending: NoBlending,
-    });
+    const look = active
+      ? new MeshBasicMaterial({
+          color: 0x000000,
+          opacity: 0,
+          transparent: true,
+          blending: NoBlending,
+        })
+      : new MeshPhysicalMaterial({
+          color: 0x08090b,
+          roughness: 0.08,
+          metalness: 0,
+          clearcoat: 1,
+          clearcoatRoughness: 0.04,
+        });
     const originals: [Mesh, Material | Material[]][] = [];
     for (const { frame } of screens) {
       const { mesh } = frame;
       const original = mesh.material;
       originals.push([mesh, original]);
       mesh.material = Array.isArray(original)
-        ? original.map((m) => (m.name === product.screenMaterial ? hole : m))
-        : hole;
+        ? original.map((m) => (m.name === product.screenMaterial ? look : m))
+        : look;
     }
     invalidate();
     return () => {
       for (const [mesh, original] of originals) mesh.material = original;
-      hole.dispose();
+      look.dispose();
       invalidate();
     };
   }, [active, screens, product.screenMaterial, invalidate]);

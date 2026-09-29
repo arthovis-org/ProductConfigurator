@@ -196,7 +196,7 @@ Everything is optional. Keys refer to names from Blender (case and underscores d
 {
   "name": "Smart Desk",
   "description": "Motorised sit-stand desk with an integrated three-monitor arm.",
-  "currency": "EUR",
+  "currency": "USD",
   "basePrice": 899,
   "order": 1,
 
@@ -255,6 +255,10 @@ Everything is optional. Keys refer to names from Blender (case and underscores d
   large parts such as monitor panels are parented to the top). Without it, the widest mesh
   under the `Lift100` objects is used. `modelled` sets the exported height instead of
   measuring it; `speed` is units per second.
+- `currency`: the currency prices are written in (default USD). Visitors can view them in
+  USD, EUR, COP, Bitcoin or Ether from the header; those are converted at the day's rate
+  (from Coinbase's public rates, fetched in the browser), marked as converted in the price summary.
+  Without live rates, EUR and COP use rough built-in rates and the crypto options are off.
 - `order`: position in the product switcher; the lowest is the default product.
 - `screens`, `workspaces`: see [Screens and workspaces](#screens-and-workspaces).
 

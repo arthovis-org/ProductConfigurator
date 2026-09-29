@@ -49,3 +49,9 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+
+.note {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

@@ -843,7 +843,7 @@ export function deriveProduct(folder: ProductFolder): DerivedProduct {
       ...(config.description && { description: config.description }),
       model: { src: asset(`${folder.url}/${folder.modelFile}`) },
       basePrice: config.basePrice ?? 0,
-      currency: config.currency ?? 'EUR',
+      currency: config.currency ?? 'USD',
       ...(config.order !== undefined && { order: config.order }),
       parts,
       optionGroups,

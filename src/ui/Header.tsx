@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { productList } from '@/catalog';
 import { useConfiguratorStore, useProduct } from '@/state/configuratorStore';
+import { DISPLAY_CURRENCIES, useCurrencyStore } from '@/state/currencyStore';
 import styles from './Header.module.css';
 
 export function Header() {
@@ -9,6 +10,9 @@ export function Header() {
   const selectProduct = useConfiguratorStore((state) => state.selectProduct);
   const serialize = useConfiguratorStore((state) => state.serialize);
   const [copied, setCopied] = useState(false);
+  const currency = useCurrencyStore((s) => s.currency);
+  const rates = useCurrencyStore((s) => s.rates);
+  const setCurrency = useCurrencyStore((s) => s.setCurrency);
 
   useEffect(() => {
     if (!copied) return;
@@ -50,6 +54,25 @@ export function Header() {
         )}
       </div>
       <div className={styles.actions}>
+        <select
+          className={styles.currency}
+          value={currency}
+          aria-label="Currency"
+          title="Show prices in"
+          onChange={(event) => setCurrency(event.target.value as typeof currency)}
+        >
+          {DISPLAY_CURRENCIES.map((c) => (
+            <option
+              key={c.code}
+              value={c.code}
+              title={c.label}
+              disabled={rates[c.code] === undefined}
+            >
+              {c.code}
+              {rates[c.code] === undefined ? ' (unavailable)' : ''}
+            </option>
+          ))}
+        </select>
         <button type="button" className={styles.button} onClick={resetToDefaults}>
           Reset
         </button>

@@ -1,9 +1,8 @@
 import type { OptionGroup } from '@/catalog/schema';
-import { useProduct } from '@/state/configuratorStore';
 import { MaterialSwatches } from './controls/MaterialSwatches';
 import { SegmentedControl } from './controls/SegmentedControl';
 import { Switch } from './controls/Switch';
-import { formatPriceDelta } from './formatPrice';
+import { usePriceFormat } from './formatPrice';
 
 interface OptionGroupControlProps {
   group: OptionGroup;
@@ -13,7 +12,7 @@ interface OptionGroupControlProps {
 
 /** Picks the right input for an option group's type. */
 export function OptionGroupControl({ group, selectedOptionId, onSelect }: OptionGroupControlProps) {
-  const { currency } = useProduct();
+  const format = usePriceFormat();
 
   switch (group.type) {
     case 'material':
@@ -22,7 +21,6 @@ export function OptionGroupControl({ group, selectedOptionId, onSelect }: Option
           options={group.options}
           selectedId={selectedOptionId}
           onSelect={onSelect}
-          currency={currency}
         />
       );
     case 'variant':
@@ -31,7 +29,7 @@ export function OptionGroupControl({ group, selectedOptionId, onSelect }: Option
           items={group.options.map((option) => ({
             id: option.id,
             label: option.label,
-            hint: formatPriceDelta(option.priceDelta, currency),
+            hint: format.delta(option.priceDelta),
           }))}
           selectedId={selectedOptionId}
           onSelect={onSelect}
@@ -46,7 +44,7 @@ export function OptionGroupControl({ group, selectedOptionId, onSelect }: Option
         <Switch
           label={group.label}
           checked={selectedOptionId === on.id}
-          hint={formatPriceDelta(on.priceDelta - off.priceDelta, currency)}
+          hint={format.delta(on.priceDelta - off.priceDelta)}
           onChange={(checked) => onSelect(checked ? on.id : off.id)}
         />
       );
