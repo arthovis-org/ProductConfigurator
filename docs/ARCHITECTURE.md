@@ -69,7 +69,8 @@ layer positions to whole pixels, which at drei `<Html transform>`'s 1 px per met
 `WorkspaceCamera` flies to a seated view (or one focused screen) and back, with the orbit
 controls disabled meanwhile; `Scene` only refits `Bounds` on resize while the orbit camera is free. Window
 drags start on a title bar and are followed on the whole window; the screen under the pointer
-is found by raycasting the screen meshes. State lives in `src/state/workspaceStore.ts`, apart
+is found by raycasting the screen meshes, and `dropTarget.ts` turns the hit into a drop action
+(side by side or swap) from the window layout on that screen. State lives in `src/state/workspaceStore.ts`, apart
 from the configuration (never priced or shared), and nothing loads until a visitor enters
 workspace mode.
 

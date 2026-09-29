@@ -12,6 +12,7 @@ import type { ProductDefinition } from '@/catalog/schema';
 import { useWorkspaceStore } from '@/state/workspaceStore';
 import { matrixRelativeTo } from '../nodeUtils';
 import { cssProjection, updateCssProjection } from './cssProjection';
+import { dropTargetAt } from './dropTarget';
 import { screenFrame, screenMeshes, type ScreenFrame } from './screenFrame';
 import { WorkspaceCamera, type CameraTarget } from './WorkspaceCamera';
 
@@ -152,7 +153,9 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
   useEffect(() => {
     const raycaster = new Raycaster();
     const pointer = new Vector2();
-    setPicker((clientX, clientY) => {
+    const local = new Vector3();
+    const inverse = new Quaternion();
+    setPicker((clientX, clientY, windowId) => {
       const rect = gl.domElement.getBoundingClientRect();
       pointer.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -163,7 +166,16 @@ export function WorkspaceLayer({ product, scene, index, hiddenNodes }: Workspace
         visible.map((s) => s.frame.mesh),
         false,
       )[0];
-      return visible.find((s) => s.frame.mesh === hit?.object)?.screen.id ?? null;
+      const target = visible.find((s) => s.frame.mesh === hit?.object);
+      const element = target && cssProjection.surfaces.get(target.screen.id);
+      if (!hit || !target || !element) return null;
+      // The hit in the screen's own pixels: x to the right, y down from the top edge.
+      const { frame } = target;
+      frame.mesh.worldToLocal(local.copy(hit.point)).sub(frame.position);
+      local.applyQuaternion(inverse.copy(frame.quaternion).invert());
+      const x = (local.x / frame.width + 0.5) * element.clientWidth;
+      const y = (0.5 - local.y / frame.height) * element.clientHeight;
+      return dropTargetAt(target.screen.id, element, x, y, windowId);
     });
     return () => setPicker(null);
   }, [visible, camera, gl, setPicker]);

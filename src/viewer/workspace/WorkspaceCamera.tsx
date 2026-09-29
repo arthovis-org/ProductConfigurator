@@ -37,6 +37,8 @@ const MOVE_SECONDS = { min: 0.55, max: 0.9 };
 /** Space around the screens; small, so they fill the view. */
 const MARGIN = 1.03;
 const WORLD_UP = new Vector3(0, 1, 0);
+/** Most the overview looks down, so a screen lying on the desk can be read. */
+const MAX_TILT = MathUtils.degToRad(30);
 
 /** Corners of a screen's display surface in world space. */
 function worldCorners({ frame }: CameraTarget): Vector3[] {
@@ -69,8 +71,27 @@ function worldFront({ frame }: CameraTarget): Vector3 {
     .transformDirection(frame.mesh.matrixWorld);
 }
 
-/** A pose looking along -`back` that fits all corners, like sitting in front of the desk. */
-function fitPose(corners: Vector3[], back: Vector3, camera: PerspectiveCamera): Pose {
+/** `back` turned upwards by `tilt`, so the camera looks down on the desk. */
+function tilted(back: Vector3, tilt: number): Vector3 {
+  const level = new Vector3(back.x, 0, back.z);
+  if (level.lengthSq() < 1e-6) return back.clone();
+  const elevation = Math.min(Math.PI / 2 - 0.05, Math.asin(MathUtils.clamp(back.y, -1, 1)) + tilt);
+  return level
+    .normalize()
+    .multiplyScalar(Math.cos(elevation))
+    .addScaledVector(WORLD_UP, Math.sin(elevation));
+}
+
+/**
+ * A pose looking along -`back` that fits all corners, like sitting in front of the desk, in
+ * the part of the view below the top `inset` (a share of its height, kept for the toolbar).
+ */
+function fitPose(
+  corners: Vector3[],
+  back: Vector3,
+  camera: PerspectiveCamera,
+  inset: number,
+): Pose {
   const centre = corners
     .reduce((sum, c) => sum.add(c), new Vector3())
     .multiplyScalar(1 / Math.max(1, corners.length));
@@ -78,18 +99,43 @@ function fitPose(corners: Vector3[], back: Vector3, camera: PerspectiveCamera): 
   if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
   right.normalize();
   const up = new Vector3().crossVectors(back, right).normalize();
-  let hx = 0;
-  let hy = 0;
-  let nearest = 0;
-  for (const corner of corners) {
+  const points = corners.map((corner) => {
     const offset = corner.clone().sub(centre);
-    hx = Math.max(hx, Math.abs(offset.dot(right)));
-    hy = Math.max(hy, Math.abs(offset.dot(up)));
-    nearest = Math.max(nearest, offset.dot(back));
+    return { x: offset.dot(right), y: offset.dot(up), depth: offset.dot(back) };
+  });
+  const tanV = Math.tan((camera.fov * Math.PI) / 360) / MARGIN;
+  const tanH = tanV * camera.aspect;
+  // Top of the free part of the view, in normalised device coordinates.
+  const top = 1 - 2 * inset;
+
+  // With the camera `d` back from the centre, the sideways and upward shifts that keep every
+  // corner in view form an interval each (nearer corners appear larger, so they constrain
+  // more); the pose is the smallest `d` for which both intervals are non-empty.
+  const shifts = (d: number) => {
+    let xMin = -Infinity;
+    let xMax = Infinity;
+    let yMin = -Infinity;
+    let yMax = Infinity;
+    for (const p of points) {
+      const z = d - p.depth;
+      if (z <= 0) return null;
+      xMin = Math.max(xMin, p.x - z * tanH);
+      xMax = Math.min(xMax, p.x + z * tanH);
+      yMin = Math.max(yMin, p.y - z * tanV * top);
+      yMax = Math.min(yMax, p.y + z * tanV);
+    }
+    return xMin <= xMax && yMin <= yMax ? { x: (xMin + xMax) / 2, y: (yMin + yMax) / 2 } : null;
+  };
+  let near = Math.max(0, ...points.map((p) => p.depth));
+  let far = near + 50;
+  for (let i = 0; i < 40; i++) {
+    const mid = (near + far) / 2;
+    if (shifts(mid)) far = mid;
+    else near = mid;
   }
-  const tanV = Math.tan((camera.fov * Math.PI) / 360);
-  const distance = Math.max(hy / tanV, hx / (tanV * camera.aspect)) * MARGIN + nearest;
-  return { position: centre.clone().addScaledVector(back, distance), target: centre };
+  const shift = shifts(far) ?? { x: 0, y: 0 };
+  const target = centre.clone().addScaledVector(right, shift.x).addScaledVector(up, shift.y);
+  return { position: target.clone().addScaledVector(back, far), target };
 }
 
 /** Fast in the middle, soft at both ends. */
@@ -132,15 +178,16 @@ const target = new Vector3();
 
 /**
  * Moves the camera for workspace mode: to a seated view of every visible screen (or one
- * focused screen), and back to where the visitor was when they leave. Orbiting is off
- * meanwhile, so pointer input goes to the websites.
+ * focused screen), and back to where the visitor was when they get up or close the
+ * workspace. Orbiting is off while seated, so pointer input goes to the websites.
  */
 export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const controls = useThree((s) => s.controls) as unknown as Controls | null;
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
-  const active = useWorkspaceStore((s) => s.active);
+  const seated = useWorkspaceStore((s) => s.seated);
+  const hudInset = useWorkspaceStore((s) => s.hudInset);
   const focus = useWorkspaceStore((s) => s.focus);
   const setCameraFree = useWorkspaceStore((s) => s.setCameraFree);
 
@@ -154,7 +201,7 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
 
   // Entering: remember the orbit pose and limits, lift the limits that would fight the view.
   useEffect(() => {
-    if (!active || !controls || saved.current) return;
+    if (!seated || !controls || saved.current) return;
     saved.current = {
       ...current(),
       limits: {
@@ -173,23 +220,31 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
     });
     // `current` only reads refs and the camera; it does not need to be a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, controls]);
+  }, [seated, controls]);
 
-  // While active: frame the focused screen or all of them; refit when the canvas resizes.
+  // While seated: frame the focused screen or all of them; refit when the canvas resizes.
   useEffect(() => {
-    if (!active || screens.length === 0) return;
+    if (!seated || screens.length === 0) return;
     const focused = screens.find((s) => s.id === focus);
     const facing = focused ?? screens.find((s) => s.id === primaryId) ?? screens[0];
     if (!facing) return;
+    let back = worldFront(facing);
+    if (!focused) {
+      // Look down a little when a screen lies on the desk: halfway between the two, at most
+      // MAX_TILT, keeps the upright screens straight enough and the flat one readable.
+      const flat = screens.find((s) => Math.abs(worldFront(s).y) >= 0.7);
+      if (flat) back = tilted(back, Math.min(MAX_TILT, back.angleTo(worldFront(flat)) / 2));
+    }
     const corners = (focused ? [focused] : screens).flatMap(worldCorners);
-    move.current = planMove(current(), fitPose(corners, worldFront(facing), camera));
+    const inset = Math.min(0.3, hudInset / Math.max(1, size.height));
+    move.current = planMove(current(), fitPose(corners, back, camera, inset));
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, focus, screens, primaryId, size.width, size.height, camera, invalidate]);
+  }, [seated, focus, screens, primaryId, size.width, size.height, hudInset, camera, invalidate]);
 
   // Leaving: fly back, then hand the camera back to the orbit controls.
   useEffect(() => {
-    if (active || !saved.current) return;
+    if (seated || !saved.current) return;
     const back = saved.current;
     move.current = planMove(current(), back, () => {
       if (controls) Object.assign(controls, { ...back.limits, enabled: true });
@@ -198,7 +253,7 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
     });
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [seated]);
 
   // The camera orbits the moving target on the way, rather than cutting straight through the
   // desk, while the distance eases from one pose to the other.

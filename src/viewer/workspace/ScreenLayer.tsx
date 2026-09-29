@@ -15,6 +15,7 @@ export function ScreenLayer() {
   const active = useWorkspaceStore((s) => s.active);
   const workspaceId = useWorkspaceStore((s) => s.workspaceId);
   const placement = useWorkspaceStore((s) => s.placement);
+  const order = useWorkspaceStore((s) => s.order);
   const surfaces = useWorkspaceStore((s) => s.surfaces);
   const primaryScreen = useWorkspaceStore((s) => s.primaryScreen);
   const camera = useRef<HTMLDivElement>(null);
@@ -33,6 +34,7 @@ export function ScreenLayer() {
   const layout = layoutWindows(
     workspaceById(product, workspaceId),
     placement,
+    order,
     surfaces.map((s) => s.screen.id),
     primaryScreen,
   );

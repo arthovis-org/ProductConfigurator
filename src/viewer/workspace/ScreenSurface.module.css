@@ -11,7 +11,8 @@
   background: #1d2433;
   container-type: inline-size;
   pointer-events: auto;
-  transition: box-shadow 120ms ease;
+  /* Seen from behind the monitor, a screen shows nothing. */
+  backface-visibility: hidden;
 }
 
 .screen > * {
@@ -20,10 +21,6 @@
 
 .screen[data-portrait] {
   flex-direction: column;
-}
-
-.screen[data-drop-target] {
-  box-shadow: inset 0 0 0 6px #4c8dff;
 }
 
 .empty {
@@ -35,4 +32,28 @@
     system-ui,
     sans-serif;
   text-align: center;
+}
+
+/* Where a dragged window would land. */
+.dropPreview {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 6px solid #4c8dff;
+  border-radius: 12px;
+  background: rgb(76 141 255 / 28%);
+  pointer-events: none;
+}
+
+.dropLabel {
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: #4c8dff;
+  color: #ffffff;
+  font:
+    600 28px/1.2 'Inter Variable',
+    system-ui,
+    sans-serif;
 }

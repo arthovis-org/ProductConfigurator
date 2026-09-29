@@ -7,14 +7,32 @@ import { getProduct } from '@/catalog';
 import type { ProductDefinition, Screen, Workspace, WorkspaceWindow } from '@/catalog/schema';
 import { useConfiguratorStore } from './configuratorStore';
 
+/**
+ * What dropping a dragged window does: onto an empty screen it moves there; onto a window it
+ * goes next to it (`before` / `after`: left or right, above or below on a portrait screen) or
+ * trades places with it (`swap`).
+ */
+export type DropAction = 'move' | 'before' | 'after' | 'swap';
+
+export interface DropTarget {
+  screen: string;
+  action: DropAction;
+  /** The window dropped next to or swapped with. */
+  windowId?: string | undefined;
+  /** Area the window would take, in the screen's CSS pixels, for the preview. */
+  rect: { x: number; y: number; width: number; height: number };
+}
+
 export interface WindowDrag {
   windowId: string;
   title: string;
+  /** Screen the window is on while it is dragged. */
+  fromScreen: string;
   /** Pointer position in viewport pixels. */
   x: number;
   y: number;
-  /** Screen under the pointer, where the window would land. */
-  over: string | null;
+  /** Where the window would land. */
+  over: DropTarget | null;
 }
 
 /** A switched-on screen as the page lays it out: its size in CSS pixels. */
@@ -24,18 +42,26 @@ export interface ScreenSurfaceInfo {
   heightPx: number;
 }
 
-/** Finds the screen under a viewport position; provided by the viewer while it is mounted. */
-export type ScreenPicker = (clientX: number, clientY: number) => string | null;
+/** Finds the drop target under a viewport position; provided by the viewer while mounted. */
+export type ScreenPicker = (
+  clientX: number,
+  clientY: number,
+  windowId: string,
+) => DropTarget | null;
 
 interface WorkspaceState {
   productId: string | null;
-  /** Workspace mode is on: the camera sits in front of the screens and sites are live. */
+  /** The workspace is on: the sites are live on the screens. */
   active: boolean;
-  /** The camera is back under the orbit controls (false from entering until the exit move ends). */
+  /** The camera sits in front of the screens with orbiting off; otherwise it moves freely. */
+  seated: boolean;
+  /** The camera is back under the orbit controls (false from sitting down until the move back ends). */
   cameraFree: boolean;
   workspaceId: string | null;
   /** Screen each window was put on; windows follow their screen's visibility. */
   placement: Readonly<Record<string, string>>;
+  /** Window ids in the order they tile on a screen (left to right, top to bottom). */
+  order: readonly string[];
   /** Screen the camera zooms to, or null for the overview of all screens. */
   focus: string | null;
   drag: WindowDrag | null;
@@ -43,10 +69,17 @@ interface WorkspaceState {
   /** Screens that are switched on, and the one that takes the windows of the others. */
   surfaces: readonly ScreenSurfaceInfo[];
   primaryScreen: string | undefined;
+  /** Height at the top of the viewer covered by the workspace toolbar, in CSS pixels. */
+  hudInset: number;
 
   resetFor: (product: ProductDefinition) => void;
+  /** Turns the workspace on and takes the seat in front of the screens. */
   enter: (workspaceId?: string) => void;
-  exit: () => void;
+  /** Leaves the seat and hands the camera back; the sites stay on. */
+  standUp: () => void;
+  sit: () => void;
+  /** Turns the workspace off. */
+  close: () => void;
   select: (workspaceId: string) => void;
   resetWindows: () => void;
   moveWindow: (windowId: string, screenId: string) => void;
@@ -54,9 +87,10 @@ interface WorkspaceState {
   setCameraFree: (free: boolean) => void;
   setPicker: (picker: ScreenPicker | null) => void;
   setSurfaces: (surfaces: readonly ScreenSurfaceInfo[], primaryScreen: string | undefined) => void;
-  startDrag: (window: WorkspaceWindow, x: number, y: number) => void;
+  setHudInset: (inset: number) => void;
+  startDrag: (window: WorkspaceWindow, fromScreen: string, x: number, y: number) => void;
   updateDrag: (x: number, y: number) => void;
-  /** Ends a drag, moving the window if it was dropped on another screen. */
+  /** Ends a drag, placing the window as its drop target says. */
   endDrag: () => void;
 }
 
@@ -71,21 +105,49 @@ export function workspaceById(
   return product.workspaces.find((w) => w.id === id) ?? product.workspaces[0];
 }
 
-function initialPlacement(workspace: Workspace | undefined): Record<string, string> {
-  return Object.fromEntries((workspace?.windows ?? []).map((w) => [w.id, w.screen]));
+function initialWindows(workspace: Workspace | undefined) {
+  const windows = workspace?.windows ?? [];
+  return {
+    placement: Object.fromEntries(windows.map((w) => [w.id, w.screen])),
+    order: windows.map((w) => w.id),
+  };
+}
+
+/** Placement and order after dropping `drag` on its target. */
+function dropped(
+  drag: WindowDrag,
+  target: DropTarget,
+  placement: Readonly<Record<string, string>>,
+  order: readonly string[],
+): { placement: Record<string, string>; order: string[] } {
+  const id = drag.windowId;
+  const other = target.windowId;
+  const next = { ...placement, [id]: target.screen };
+  if (target.action === 'swap' && other) {
+    next[other] = drag.fromScreen;
+    return { placement: next, order: order.map((w) => (w === id ? other : w === other ? id : w)) };
+  }
+  const rest = order.filter((w) => w !== id);
+  const at = other ? rest.indexOf(other) : -1;
+  if (at < 0) return { placement: next, order: [...rest, id] };
+  rest.splice(target.action === 'after' ? at + 1 : at, 0, id);
+  return { placement: next, order: rest };
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   productId: null,
   active: false,
+  seated: false,
   cameraFree: true,
   workspaceId: null,
   placement: {},
+  order: [],
   focus: null,
   drag: null,
   pickScreen: null,
   surfaces: [],
   primaryScreen: undefined,
+  hudInset: 0,
 
   resetFor: (product) => {
     if (get().productId === product.id) return;
@@ -93,9 +155,10 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     set({
       productId: product.id,
       active: false,
+      seated: false,
       cameraFree: true,
       workspaceId: workspace?.id ?? null,
-      placement: initialPlacement(workspace),
+      ...initialWindows(workspace),
       focus: null,
       drag: null,
     });
@@ -107,65 +170,75 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     const switching = workspace.id !== get().workspaceId;
     set({
       active: true,
+      seated: true,
       cameraFree: false,
       workspaceId: workspace.id,
       focus: null,
-      ...(switching && { placement: initialPlacement(workspace) }),
+      ...(switching && initialWindows(workspace)),
     });
   },
 
-  exit: () => set({ active: false, focus: null, drag: null }),
+  standUp: () => set({ seated: false, focus: null }),
+  sit: () => set({ seated: true, cameraFree: false }),
+  close: () => set({ active: false, seated: false, focus: null, drag: null }),
 
   select: (workspaceId) => {
     const workspace = workspaceById(currentProduct(get()), workspaceId);
     if (!workspace) return;
-    set({ workspaceId: workspace.id, placement: initialPlacement(workspace), focus: null });
+    set({ workspaceId: workspace.id, ...initialWindows(workspace), focus: null });
   },
 
   resetWindows: () => {
     const workspace = workspaceById(currentProduct(get()), get().workspaceId);
-    set({ placement: initialPlacement(workspace), focus: null });
+    set({ ...initialWindows(workspace), focus: null });
   },
 
   moveWindow: (windowId, screenId) =>
-    set((state) => ({ placement: { ...state.placement, [windowId]: screenId } })),
+    set((state) => ({
+      placement: { ...state.placement, [windowId]: screenId },
+      order: [...state.order.filter((w) => w !== windowId), windowId],
+    })),
 
-  setFocus: (focus) => set({ focus }),
+  // Zooming to one screen takes the seat again.
+  setFocus: (focus) => set(focus ? { focus, seated: true, cameraFree: false } : { focus }),
   setCameraFree: (cameraFree) => set({ cameraFree }),
   setPicker: (pickScreen) => set({ pickScreen }),
   setSurfaces: (surfaces, primaryScreen) => set({ surfaces, primaryScreen }),
+  setHudInset: (hudInset) => set({ hudInset }),
 
-  startDrag: (window, x, y) =>
-    set({ drag: { windowId: window.id, title: window.title, x, y, over: null } }),
+  startDrag: (window, fromScreen, x, y) =>
+    set({ drag: { windowId: window.id, title: window.title, fromScreen, x, y, over: null } }),
 
   updateDrag: (x, y) => {
     const { drag, pickScreen } = get();
     if (!drag) return;
-    set({ drag: { ...drag, x, y, over: pickScreen?.(x, y) ?? null } });
+    set({ drag: { ...drag, x, y, over: pickScreen?.(x, y, drag.windowId) ?? null } });
   },
 
   endDrag: () => {
-    const { drag } = get();
+    const { drag, placement, order } = get();
     if (!drag) return;
-    set((state) => ({
-      drag: null,
-      ...(drag.over && { placement: { ...state.placement, [drag.windowId]: drag.over } }),
-    }));
+    set({ drag: null, ...(drag.over && dropped(drag, drag.over, placement, order)) });
   },
 }));
 
 /**
- * Windows per screen for the current placement. A window whose screen is hidden (its monitor
- * switched off) moves to the primary screen until its own screen is back.
+ * Windows per screen, in tiling order, for the current placement. A window whose screen is
+ * hidden (its monitor switched off) moves to the primary screen until its own screen is back.
  */
 export function layoutWindows(
   workspace: Workspace | undefined,
   placement: Readonly<Record<string, string>>,
+  order: readonly string[],
   visibleScreens: readonly string[],
   primaryScreen: string | undefined,
 ): Map<string, WorkspaceWindow[]> {
+  const rank = (w: WorkspaceWindow) => {
+    const at = order.indexOf(w.id);
+    return at < 0 ? Infinity : at;
+  };
   const layout = new Map<string, WorkspaceWindow[]>();
-  for (const window of workspace?.windows ?? []) {
+  for (const window of [...(workspace?.windows ?? [])].sort((a, b) => rank(a) - rank(b))) {
     const wanted = placement[window.id] ?? window.screen;
     const screen = visibleScreens.includes(wanted) ? wanted : primaryScreen;
     if (!screen) continue;

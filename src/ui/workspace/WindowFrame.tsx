@@ -33,11 +33,11 @@ export function WindowFrame({ window: win, screenId, screens }: WindowFrameProps
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || (event.target as HTMLElement).closest('a, button, select')) return;
     event.preventDefault();
-    startDrag(win, event.clientX, event.clientY);
+    startDrag(win, screenId, event.clientX, event.clientY);
   };
 
   return (
-    <div className={styles.window}>
+    <div className={styles.window} data-window-id={win.id}>
       <div
         className={styles.titleBar}
         onPointerDown={onPointerDown}

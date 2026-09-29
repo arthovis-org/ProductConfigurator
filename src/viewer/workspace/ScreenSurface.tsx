@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { Screen, WorkspaceWindow } from '@/catalog/schema';
-import { useWorkspaceStore, type ScreenSurfaceInfo } from '@/state/workspaceStore';
+import { useWorkspaceStore, type ScreenSurfaceInfo, type WindowDrag } from '@/state/workspaceStore';
 import { WindowFrame } from '@/ui/workspace/WindowFrame';
 import { cssProjection } from './cssProjection';
 import styles from './ScreenSurface.module.css';
@@ -21,12 +21,8 @@ interface ScreenSurfaceProps {
 export function ScreenSurface({ surface, windows, targets }: ScreenSurfaceProps) {
   const { screen, widthPx, heightPx } = surface;
   const ref = useRef<HTMLDivElement>(null);
-  const isDropTarget = useWorkspaceStore(
-    (s) =>
-      s.drag !== null &&
-      s.drag.over === screen.id &&
-      !windows.some((w) => w.id === s.drag?.windowId),
-  );
+  const drop = useWorkspaceStore((s) => (s.drag?.over?.screen === screen.id ? s.drag.over : null));
+  const dropLabel = useWorkspaceStore((s) => (s.drag ? dropDescription(s.drag, windows) : ''));
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -43,7 +39,6 @@ export function ScreenSurface({ surface, windows, targets }: ScreenSurfaceProps)
       ref={ref}
       className={styles.screen}
       data-portrait={heightPx > widthPx || undefined}
-      data-drop-target={isDropTarget || undefined}
       style={{ width: widthPx, height: heightPx }}
       aria-label={`${screen.label} screen`}
     >
@@ -58,6 +53,36 @@ export function ScreenSurface({ surface, windows, targets }: ScreenSurfaceProps)
           <WindowFrame key={window.id} window={window} screenId={screen.id} screens={targets} />
         ))
       )}
+      {drop && (
+        <div
+          className={styles.dropPreview}
+          style={{
+            left: drop.rect.x,
+            top: drop.rect.y,
+            width: drop.rect.width,
+            height: drop.rect.height,
+          }}
+          aria-hidden="true"
+        >
+          <span className={styles.dropLabel}>{dropLabel}</span>
+        </div>
+      )}
     </div>
   );
+}
+
+/** What the drop preview says, e.g. "Swap with Notes". */
+function dropDescription(drag: WindowDrag, windows: readonly WorkspaceWindow[]) {
+  const target = drag.over;
+  if (!target) return '';
+  const other = windows.find((w) => w.id === target.windowId)?.title;
+  switch (target.action) {
+    case 'swap':
+      return `Swap with ${other ?? 'this window'}`;
+    case 'before':
+    case 'after':
+      return `Next to ${other ?? 'this window'}`;
+    default:
+      return `Move ${drag.title} here`;
+  }
 }
