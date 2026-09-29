@@ -67,7 +67,7 @@ world transform, like three's CSS3DRenderer but at 1000 CSS px per metre: browse
 layer positions to whole pixels, which at drei `<Html transform>`'s 1 px per metre put a screen
 1.45 m up at 1 m.
 `WorkspaceCamera` flies to a seated view (or one focused screen) and back, with the orbit
-controls disabled meanwhile; `Scene` pauses `Bounds` refitting while it owns the camera. Window
+controls disabled meanwhile; `Scene` only refits `Bounds` on resize while the orbit camera is free. Window
 drags start on a title bar and are followed on the whole window; the screen under the pointer
 is found by raycasting the screen meshes. State lives in `src/state/workspaceStore.ts`, apart
 from the configuration (never priced or shared), and nothing loads until a visitor enters

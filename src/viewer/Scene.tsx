@@ -1,6 +1,6 @@
-import { Bounds, ContactShadows, OrbitControls } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import { Suspense } from 'react';
+import { Bounds, ContactShadows, OrbitControls, useBounds } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Suspense, useEffect, useRef } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
 import { StudioEnvironment } from './StudioEnvironment';
 import { ViewerErrorBoundary } from './ViewerErrorBoundary';
@@ -14,10 +14,27 @@ import styles from './Scene.module.css';
 // This module is loaded lazily, and this is the earliest point where three is available.
 preloadCurrentProduct();
 
+/**
+ * Reframes the product when the canvas is resized, unless workspace mode has the camera.
+ * `Bounds observe` can't be switched off for that: turning it off makes drei refit once.
+ */
+function RefitOnResize() {
+  const bounds = useBounds();
+  const width = useThree((s) => s.size.width);
+  const height = useThree((s) => s.size.height);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (useWorkspaceStore.getState().cameraFree) bounds.refresh().clip().fit();
+  }, [bounds, width, height]);
+  return null;
+}
+
 /** Studio-style viewer: soft environment light, contact shadow, damped orbit controls. */
 export function Scene() {
-  // Workspace mode owns the camera; automatic refitting on resize would pull it away.
-  const cameraFree = useWorkspaceStore((s) => s.cameraFree);
   return (
     <div className={styles.viewer}>
       <Canvas
@@ -29,7 +46,8 @@ export function Scene() {
       >
         <ViewerErrorBoundary>
           <Suspense fallback={<LoadingIndicator />}>
-            <Bounds fit clip observe={cameraFree} margin={1.25}>
+            <Bounds fit clip margin={1.25}>
+              <RefitOnResize />
               <ProductModel />
             </Bounds>
           </Suspense>

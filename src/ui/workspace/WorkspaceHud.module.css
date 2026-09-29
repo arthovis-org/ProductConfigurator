@@ -1,8 +1,8 @@
-/* Start card, bottom left of the viewer. */
+/* Start card, top left of the viewer. */
 .card {
   position: absolute;
+  top: 16px;
   left: 16px;
-  bottom: 16px;
   z-index: 200;
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
-import { type PerspectiveCamera, Vector3 } from 'three';
+import { MathUtils, type PerspectiveCamera, Spherical, Vector3 } from 'three';
 import { useWorkspaceStore } from '@/state/workspaceStore';
 import type { ScreenFrame } from './screenFrame';
 
@@ -32,8 +32,10 @@ interface Pose {
   target: Vector3;
 }
 
-const MOVE_SECONDS = 0.7;
-const MARGIN = 1.08;
+/** Move duration: short hops are quick, a swing round from behind the desk a little longer. */
+const MOVE_SECONDS = { min: 0.55, max: 0.9 };
+/** Space around the screens; small, so they fill the view. */
+const MARGIN = 1.03;
 const WORLD_UP = new Vector3(0, 1, 0);
 
 /** Corners of a screen's display surface in world space. */
@@ -90,7 +92,43 @@ function fitPose(corners: Vector3[], back: Vector3, camera: PerspectiveCamera): 
   return { position: centre.clone().addScaledVector(back, distance), target: centre };
 }
 
-const smooth = (t: number) => t * t * (3 - 2 * t);
+/** Fast in the middle, soft at both ends. */
+const ease = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
+interface Move {
+  from: Pose;
+  to: Pose;
+  /** Camera direction from the target, at both ends. */
+  fromAngle: Spherical;
+  toAngle: Spherical;
+  seconds: number;
+  t: number;
+  started: boolean;
+  onDone?: (() => void) | undefined;
+}
+
+function planMove(from: Pose, to: Pose, onDone?: () => void): Move {
+  const fromAngle = new Spherical().setFromVector3(from.position.clone().sub(from.target));
+  const toAngle = new Spherical().setFromVector3(to.position.clone().sub(to.target));
+  // Swing the short way round.
+  let turn = toAngle.theta - fromAngle.theta;
+  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+  toAngle.theta = fromAngle.theta + turn;
+  const sweep = Math.min(1, (Math.abs(turn) + Math.abs(toAngle.phi - fromAngle.phi)) / Math.PI);
+  return {
+    from,
+    to,
+    fromAngle,
+    toAngle,
+    seconds: MathUtils.lerp(MOVE_SECONDS.min, MOVE_SECONDS.max, sweep),
+    t: 0,
+    started: false,
+    onDone,
+  };
+}
+
+const angle = new Spherical();
+const target = new Vector3();
 
 /**
  * Moves the camera for workspace mode: to a seated view of every visible screen (or one
@@ -107,7 +145,7 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
   const setCameraFree = useWorkspaceStore((s) => s.setCameraFree);
 
   const saved = useRef<(Pose & { limits: Partial<Controls> }) | null>(null);
-  const move = useRef<{ from: Pose; to: Pose; t: number; onDone?: () => void } | null>(null);
+  const move = useRef<Move | null>(null);
 
   const current = (): Pose => ({
     position: camera.position.clone(),
@@ -144,7 +182,7 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
     const facing = focused ?? screens.find((s) => s.id === primaryId) ?? screens[0];
     if (!facing) return;
     const corners = (focused ? [focused] : screens).flatMap(worldCorners);
-    move.current = { from: current(), to: fitPose(corners, worldFront(facing), camera), t: 0 };
+    move.current = planMove(current(), fitPose(corners, worldFront(facing), camera));
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, focus, screens, primaryId, size.width, size.height, camera, invalidate]);
@@ -153,33 +191,37 @@ export function WorkspaceCamera({ screens, primaryId }: WorkspaceCameraProps) {
   useEffect(() => {
     if (active || !saved.current) return;
     const back = saved.current;
-    move.current = {
-      from: current(),
-      to: back,
-      t: 0,
-      onDone: () => {
-        if (controls) Object.assign(controls, { ...back.limits, enabled: true });
-        saved.current = null;
-        setCameraFree(true);
-      },
-    };
+    move.current = planMove(current(), back, () => {
+      if (controls) Object.assign(controls, { ...back.limits, enabled: true });
+      saved.current = null;
+      setCameraFree(true);
+    });
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  // The camera orbits the moving target on the way, rather than cutting straight through the
+  // desk, while the distance eases from one pose to the other.
   useFrame((_, delta) => {
     const m = move.current;
     if (!m) return;
-    m.t = Math.min(1, m.t + Math.min(delta, 0.1) / MOVE_SECONDS);
-    const k = smooth(m.t);
-    camera.position.lerpVectors(m.from.position, m.to.position, k);
-    const target = new Vector3().lerpVectors(m.from.target, m.to.target, k);
-    controls?.target.copy(target);
+    // After a still period the first delta spans the whole pause; start the clock now instead.
+    if (m.started) m.t = Math.min(1, m.t + Math.min(delta, 0.05) / m.seconds);
+    m.started = true;
+    const k = ease(m.t);
+    target.lerpVectors(m.from.target, m.to.target, k);
+    angle.set(
+      MathUtils.lerp(m.fromAngle.radius, m.toAngle.radius, k),
+      MathUtils.lerp(m.fromAngle.phi, m.toAngle.phi, k),
+      MathUtils.lerp(m.fromAngle.theta, m.toAngle.theta, k),
+    );
+    camera.position.setFromSpherical(angle).add(target);
     camera.lookAt(target);
-    controls?.update();
+    controls?.target.copy(target);
     if (m.t >= 1) {
       move.current = null;
       m.onDone?.();
+      controls?.update();
     }
     invalidate();
   });
